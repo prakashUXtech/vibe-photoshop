@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can only read/write their own data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Images can be read/written by their owners
+    match /images/{imageId} {
+      allow read, write: if request.auth != null && 
+                          request.auth.uid == resource.data.userId;
+      
+      // Allow read if image is public
+      allow read: if resource.data.isPublic == true;
+    }
+    
+    // Versions can be read/written by the image owners
+    match /versions/{versionId} {
+      allow read, write: if request.auth != null && 
+                          request.auth.uid == get(/databases/$(database)/documents/images/$(resource.data.imageId)).data.userId;
+    }
+  }
+} 

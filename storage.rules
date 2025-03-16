@@ -1,0 +1,32 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Default deny all
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+    
+    // Allow access to user's own images
+    match /images/{userId}/{imageId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow access to user's own thumbnails
+    match /thumbnails/{userId}/{imageId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Public access to thumbnails of public images
+      allow read: if firestore.get(/databases/(default)/documents/images/$(imageId)).data.isPublic == true;
+    }
+    
+    // Allow access to user's own version images
+    match /versions/{userId}/{imageId}/{versionId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow access to user's own version thumbnails
+    match /thumbnails/{userId}/{imageId}/{versionId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+} 
