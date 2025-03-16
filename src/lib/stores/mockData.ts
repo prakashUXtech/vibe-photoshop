@@ -5,6 +5,8 @@ export const mockUser: User = {
   id: '1',
   email: 'demo@example.com',
   name: 'Demo User',
+  firstName: 'Demo',
+  lastName: 'User',
   apiKey: 'mock-api-key',
   createdAt: new Date('2024-01-01'),
   updatedAt: new Date('2024-01-01')
