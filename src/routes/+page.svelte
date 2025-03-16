@@ -12,12 +12,12 @@
   let selectedImage: File | null = null;
   let previewUrl: string | null = null;
   let currentImage: Image | null = null;
-  let showVersionHistory = false;
+  let showVersionHistory = true;
   let showLayers = true;
   let error = '';
   let messages: {text: string, type: 'user' | 'system', timestamp: Date}[] = [];
   let chatContainer: HTMLElement | null = null;
-  let activeTab = 'history'; // 'history', 'layers', 'adjustments'
+  let activeTab = 'vibe'; // 'vibe', 'history', 'adjustments'
   
   // Handle file upload
   function handleFileSelect(event: Event) {
@@ -246,21 +246,6 @@
 
 <!-- Photoshop-inspired UI with dark theme -->
 <div class="flex-1 flex flex-col bg-gray-900 text-gray-200">
-  <!-- Top menu bar (Photoshop-style) -->
-  <div class="bg-gray-800 border-b border-gray-700 py-1 px-4 flex items-center">
-    <div class="flex space-x-4 text-xs">
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">File</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">Edit</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">Image</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">Layer</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">Select</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">Filter</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">View</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">Window</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">Help</div>
-    </div>
-  </div>
-  
   <!-- Main content area -->
   <main class="flex-1 flex flex-col md:flex-row">
     <!-- Left side: Image display (main canvas) -->
@@ -296,43 +281,78 @@
       </div>
       
       <!-- Canvas area -->
-      <div class="flex-1 bg-gray-700 p-4 flex items-center justify-center overflow-auto">
-        {#if currentImage}
-          <!-- Image display -->
-          <div class="relative bg-gray-800 shadow-lg">
-            <img 
-              src={currentImage.imageUrl} 
-              alt={currentImage.prompt}
-              class="max-w-full max-h-[calc(100vh-200px)] object-contain"
-            />
-            <!-- Checkerboard pattern for transparency -->
-            <div class="absolute inset-0 -z-10 bg-checkerboard"></div>
-          </div>
-        {:else if isUploading || isGenerating}
-          <!-- Loading state -->
-          <div class="text-center">
-            <div class="inline-block h-16 w-16 animate-spin rounded-full border-4 border-solid border-gray-600 border-t-blue-500"></div>
-            <p class="mt-4 text-sm text-gray-400">
-              {isUploading ? 'Uploading image...' : 'Generating image...'}
-            </p>
-          </div>
-        {:else}
-          <!-- Empty state -->
-          <div class="text-center p-6 bg-gray-800 rounded-lg shadow-lg max-w-md">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-gray-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <h3 class="text-lg font-medium text-gray-300 mb-2">No image selected</h3>
-            <p class="text-gray-400 mb-4">
-              Upload an image or enter a prompt to get started.
-            </p>
-            <label class="inline-flex items-center px-4 py-2 border border-gray-600 rounded-md text-sm font-medium text-gray-300 bg-gray-700 hover:bg-gray-600 cursor-pointer">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      <div class="flex-1 bg-gray-700 p-4 flex flex-col">
+        <div class="flex-1 flex items-center justify-center overflow-auto">
+          {#if currentImage}
+            <!-- Image display -->
+            <div class="relative bg-gray-800 shadow-lg">
+              <img 
+                src={currentImage.imageUrl} 
+                alt={currentImage.prompt}
+                class="max-w-full max-h-[calc(100vh-300px)] object-contain"
+              />
+              <!-- Checkerboard pattern for transparency -->
+              <div class="absolute inset-0 -z-10 bg-checkerboard"></div>
+            </div>
+          {:else if isUploading || isGenerating}
+            <!-- Loading state -->
+            <div class="text-center">
+              <div class="inline-block h-16 w-16 animate-spin rounded-full border-4 border-solid border-gray-600 border-t-blue-500"></div>
+              <p class="mt-4 text-sm text-gray-400">
+                {isUploading ? 'Uploading image...' : 'Generating image...'}
+              </p>
+            </div>
+          {:else}
+            <!-- Empty state -->
+            <div class="text-center p-6 bg-gray-800 rounded-lg shadow-lg max-w-md">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-gray-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              Upload Image
-              <input type="file" class="hidden" accept="image/*" on:change={handleFileSelect} />
-            </label>
+              <h3 class="text-lg font-medium text-gray-300 mb-2">No image selected</h3>
+              <p class="text-gray-400 mb-4">
+                Upload an image or enter a prompt to get started.
+              </p>
+              <label class="inline-flex items-center px-4 py-2 border border-gray-600 rounded-md text-sm font-medium text-gray-300 bg-gray-700 hover:bg-gray-600 cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Upload Image
+                <input type="file" class="hidden" accept="image/*" on:change={handleFileSelect} />
+              </label>
+            </div>
+          {/if}
+        </div>
+        
+        <!-- Version history under the main image -->
+        {#if currentImage && currentImage.versions.length > 1 && showVersionHistory}
+          <div class="mt-4 bg-gray-800 p-3 rounded border border-gray-700">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-xs font-medium text-gray-300">Version History</h3>
+              <button 
+                on:click={toggleVersionHistory}
+                class="text-xs text-gray-400 hover:text-gray-200"
+                aria-label="Hide Version History"
+              >
+                Hide
+              </button>
+            </div>
+            <div class="flex space-x-3 overflow-x-auto pb-2">
+              {#each currentImage.versions as version, i}
+                <button 
+                  class="flex-shrink-0 cursor-pointer group text-left"
+                  on:click={() => selectVersion(version)}
+                  aria-label={`Select version ${i + 1}`}
+                >
+                  <div class="w-20 h-20 rounded overflow-hidden bg-gray-700 border-2 {version.imageUrl === currentImage.imageUrl ? 'border-blue-500' : 'border-gray-600 hover:border-gray-500'}">
+                    <div class="relative h-full">
+                      <img src={version.imageUrl} alt={version.prompt} class="w-full h-full object-cover" />
+                      <div class="absolute inset-0 -z-10 bg-checkerboard"></div>
+                    </div>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-400 truncate w-20">Version {i + 1}</p>
+                </button>
+              {/each}
+            </div>
           </div>
         {/if}
       </div>
@@ -349,20 +369,20 @@
     </div>
     
     <!-- Right side: Panels (Photoshop-style) -->
-    <div class="w-full md:w-1/3 border-l border-gray-700 flex flex-col">
+    <div class="w-full md:w-1/3 border-l border-gray-700 flex flex-col h-full">
       <!-- Panel tabs -->
       <div class="bg-gray-800 border-b border-gray-700 flex">
+        <button 
+          class="px-4 py-2 text-xs font-medium {activeTab === 'vibe' ? 'bg-gray-700 text-blue-400' : 'text-gray-400 hover:bg-gray-700'}"
+          on:click={() => activeTab = 'vibe'}
+        >
+          Vibe Create
+        </button>
         <button 
           class="px-4 py-2 text-xs font-medium {activeTab === 'history' ? 'bg-gray-700 text-blue-400' : 'text-gray-400 hover:bg-gray-700'}"
           on:click={() => activeTab = 'history'}
         >
           History
-        </button>
-        <button 
-          class="px-4 py-2 text-xs font-medium {activeTab === 'layers' ? 'bg-gray-700 text-blue-400' : 'text-gray-400 hover:bg-gray-700'}"
-          on:click={() => activeTab = 'layers'}
-        >
-          Layers
         </button>
         <button 
           class="px-4 py-2 text-xs font-medium {activeTab === 'adjustments' ? 'bg-gray-700 text-blue-400' : 'text-gray-400 hover:bg-gray-700'}"
@@ -373,12 +393,13 @@
       </div>
       
       <!-- Panel content -->
-      <div class="flex-1 bg-gray-800 overflow-hidden flex flex-col">
-        {#if activeTab === 'history'}
-          <!-- History panel (chat) -->
+      <div class="flex-1 bg-gray-800 overflow-hidden flex flex-col h-full">
+        {#if activeTab === 'vibe'}
+          <!-- Vibe Create panel (chat) -->
           <div 
             bind:this={chatContainer}
-            class="flex-1 overflow-y-auto p-3 space-y-3"
+            class="flex-1 overflow-y-auto p-3 space-y-3 h-full"
+            style="max-height: calc(100vh - 150px);"
           >
             {#each messages as message}
               <div class="flex {message.type === 'user' ? 'justify-end' : 'justify-start'}">
@@ -403,7 +424,7 @@
           </div>
           
           <!-- Prompt input -->
-          <div class="p-3 border-t border-gray-700">
+          <div class="p-3 border-t border-gray-700 mt-auto">
             <form on:submit|preventDefault={processInput} class="flex items-center">
               <div class="flex-grow relative">
                 <input
@@ -434,9 +455,9 @@
               </button>
             </form>
           </div>
-        {:else if activeTab === 'layers'}
-          <!-- Layers panel -->
-          <div class="flex-1 p-3">
+        {:else if activeTab === 'history'}
+          <!-- History panel (layers) -->
+          <div class="flex-1 p-3 overflow-y-auto" style="max-height: calc(100vh - 150px);">
             <div class="mb-3 flex justify-between items-center">
               <h3 class="text-xs font-medium text-gray-300">Layers</h3>
               <div class="flex space-x-1">
@@ -471,7 +492,7 @@
                 <!-- Version layers -->
                 {#each currentImage.versions as version, i}
                   <div 
-                    class="p-2 flex items-center justify-between hover:bg-gray-600 cursor-pointer {i === currentImage.versions.length - 1 ? 'bg-gray-600' : ''}"
+                    class="p-2 flex items-center justify-between hover:bg-gray-600 cursor-pointer {version.imageUrl === currentImage.imageUrl ? 'bg-gray-600' : ''}"
                     on:click={() => selectVersion(version)}
                   >
                     <div class="flex items-center">
@@ -492,7 +513,7 @@
           </div>
         {:else if activeTab === 'adjustments'}
           <!-- Adjustments panel -->
-          <div class="flex-1 p-3">
+          <div class="flex-1 p-3 overflow-y-auto" style="max-height: calc(100vh - 150px);">
             <h3 class="text-xs font-medium text-gray-300 mb-3">Adjustments</h3>
             
             <div class="space-y-4">

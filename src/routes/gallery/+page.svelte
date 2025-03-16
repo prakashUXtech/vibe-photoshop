@@ -53,17 +53,6 @@
 </script>
 
 <div class="flex-1 flex flex-col bg-gray-900 text-gray-200">
-  <!-- Top menu bar (Photoshop-style) -->
-  <div class="bg-gray-800 border-b border-gray-700 py-1 px-4 flex items-center">
-    <div class="flex space-x-4 text-xs">
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">File</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">Edit</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">View</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">Window</div>
-      <div class="px-2 py-1 hover:bg-gray-700 cursor-pointer">Help</div>
-    </div>
-  </div>
-
   <main class="flex-1 py-6">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <!-- Gallery toolbar -->
