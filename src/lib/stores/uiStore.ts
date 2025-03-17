@@ -6,12 +6,13 @@ import { browser } from '$app/environment';
 export type Theme = 'light' | 'dark' | 'system';
 
 // Define UI state interface
-interface UIState {
+export interface UIState {
   activeTab: string;
   isLoading: boolean;
   loadingProgress: number;
   loadingText: string;
   theme: Theme;
+  selectedImage: string | null;
 }
 
 // Get initial theme from localStorage or default to system
@@ -44,7 +45,8 @@ const initialState: UIState = {
   isLoading: true,
   loadingProgress: 0,
   loadingText: 'Initializing...',
-  theme: getInitialTheme()
+  theme: getInitialTheme(),
+  selectedImage: null
 };
 
 // Create the store
@@ -118,6 +120,14 @@ export const uiStore = {
     }));
   },
   
+  // Set selected image
+  setSelectedImage: (image: string | null) => {
+    update(state => ({
+      ...state,
+      selectedImage: image
+    }));
+  },
+  
   // Simulate loading progress
   simulateLoading: () => {
     if (!browser) return;
@@ -126,44 +136,28 @@ export const uiStore = {
       ...state,
       isLoading: true,
       loadingProgress: 0,
-      loadingText: 'Initializing...'
+      loadingText: 'Starting...'
     }));
     
     const interval = setInterval(() => {
       update(state => {
-        if (state.loadingProgress < 100) {
-          const newProgress = state.loadingProgress + 10;
-          
-          let newText = state.loadingText;
-          if (newProgress < 30) {
-            newText = 'Initializing application...';
-          } else if (newProgress < 60) {
-            newText = 'Loading resources...';
-          } else if (newProgress < 90) {
-            newText = 'Preparing workspace...';
-          } else {
-            newText = 'Almost ready...';
-          }
-          
+        if (state.loadingProgress >= 100) {
+          clearInterval(interval);
           return {
             ...state,
-            loadingProgress: newProgress,
-            loadingText: newText
+            isLoading: false,
+            loadingProgress: 0,
+            loadingText: ''
           };
-        } else {
-          clearInterval(interval);
-          
-          // Set a timeout to hide the loading screen
-          setTimeout(() => {
-            update(s => ({
-              ...s,
-              isLoading: false
-            }));
-          }, 300);
-          
-          return state;
         }
+        
+        const progress = Math.min(state.loadingProgress + 10, 100);
+        return {
+          ...state,
+          loadingProgress: progress,
+          loadingText: progress < 100 ? 'Almost ready...' : 'Done!'
+        };
       });
-    }, 50);
+    }, 100);
   }
 }; 

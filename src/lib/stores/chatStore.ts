@@ -3,9 +3,10 @@ import { writable } from 'svelte/store';
 
 // Define message interface
 export interface ChatMessage {
+  type: 'user' | 'assistant' | 'system';
   text: string;
-  type: 'user' | 'system';
   timestamp: Date;
+  images?: string[];  // Add support for image arrays
 }
 
 // Define chat state interface
@@ -17,7 +18,11 @@ interface ChatState {
 
 // Create initial state
 const initialState: ChatState = {
-  messages: [],
+  messages: [{
+    type: 'system',
+    text: 'Welcome to Vibe Photoshop! Upload an image or enter a prompt to get started.',
+    timestamp: new Date()
+  }],
   prompt: '',
   error: ''
 };
@@ -30,14 +35,9 @@ export const chatStore = {
   subscribe,
   
   // Add a message
-  addMessage: (text: string, type: 'user' | 'system') => {
+  addMessage: (message: ChatMessage) => {
     update(state => ({
-      ...state,
-      messages: [...state.messages, {
-        text,
-        type,
-        timestamp: new Date()
-      }]
+      messages: [...state.messages, message]
     }));
   },
   
@@ -70,10 +70,17 @@ export const chatStore = {
     update(state => ({
       ...initialState,
       messages: [{
-        text: 'Welcome to Vibe Photoshop! Upload an image or enter a prompt to get started.',
         type: 'system',
+        text: 'Welcome to Vibe Photoshop! Upload an image or enter a prompt to get started.',
         timestamp: new Date()
       }]
+    }));
+  },
+  
+  // Clear all messages
+  clearMessages: () => {
+    update(() => ({
+      messages: []
     }));
   }
 }; 

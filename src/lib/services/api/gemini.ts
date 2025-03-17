@@ -6,7 +6,7 @@
  */
 
 import { browser } from '$app/environment';
-import { GoogleGenerativeAI, type GenerateContentResult } from '@google/generative-ai';
+import { GoogleGenerativeAI, type GenerateContentResult, type GenerateContentResponse } from '@google/generative-ai';
 import type { ChatMessage } from '$lib/stores/chatStore';
 
 // Define response types
@@ -67,9 +67,12 @@ export async function generateImage(prompt: string): Promise<GeminiResponse> {
     
     // Get the Gemini Flash model
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "models/gemini-2.0-flash-exp",
       generationConfig: {
-        responseModalities: ["Text", "Image"]
+        temperature: 0.9,
+        topP: 1,
+        topK: 1,
+        maxOutputTokens: 2048
       }
     });
     
@@ -92,7 +95,8 @@ export async function generateImage(prompt: string): Promise<GeminiResponse> {
     };
     
     // Extract text and images from response
-    for (const part of candidates[0].content.parts) {
+    const parts = candidates[0]?.content?.parts || [];
+    for (const part of parts) {
       if (part.text) {
         geminiResponse.text.push(part.text);
       } else if (part.inlineData) {
@@ -127,9 +131,12 @@ export async function editImage(imageData: string, editInstructions: string): Pr
     
     // Get the Gemini Flash model
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "models/gemini-2.0-flash-exp",
       generationConfig: {
-        responseModalities: ["Text", "Image"]
+        temperature: 0.9,
+        topP: 1,
+        topK: 1,
+        maxOutputTokens: 2048
       }
     });
     
@@ -158,7 +165,8 @@ export async function editImage(imageData: string, editInstructions: string): Pr
     };
     
     // Extract text and images from response
-    for (const part of candidates[0].content.parts) {
+    const parts = candidates[0]?.content?.parts || [];
+    for (const part of parts) {
       if (part.text) {
         geminiResponse.text.push(part.text);
       } else if (part.inlineData) {
@@ -196,9 +204,12 @@ export async function continueImageEditing(
     
     // Get the Gemini Flash model
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "models/gemini-2.0-flash-exp",
       generationConfig: {
-        responseModalities: ["Text", "Image"]
+        temperature: 0.9,
+        topP: 1,
+        topK: 1,
+        maxOutputTokens: 2048
       }
     });
     
@@ -218,7 +229,9 @@ export async function continueImageEditing(
     };
     
     // Extract text and images from response
-    for (const part of response.candidates[0].content.parts) {
+    const candidates = response.candidates || [];
+    const parts = candidates[0]?.content?.parts || [];
+    for (const part of parts) {
       if (part.text) {
         geminiResponse.text.push(part.text);
       } else if (part.inlineData) {
@@ -285,7 +298,15 @@ export function fileToBase64(file: File): Promise<string> {
 export async function validateApiKey(apiKey: string): Promise<boolean> {
   try {
     const genAI = getGeminiClient(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ 
+      model: "models/gemini-2.0-flash-exp",
+      generationConfig: {
+        temperature: 0.9,
+        topP: 1,
+        topK: 1,
+        maxOutputTokens: 2048
+      }
+    });
     await model.generateContent("Test");
     return true;
   } catch (error) {
