@@ -1,12 +1,12 @@
-// Chat store for managing messages and prompt state
+// Chat store for managing chat messages and state
 import { writable } from 'svelte/store';
 
-// Define message interface
+// Define chat message type
 export interface ChatMessage {
   type: 'user' | 'assistant' | 'system';
   text: string;
   timestamp: Date;
-  images?: string[];  // Add support for image arrays
+  images?: string[];
 }
 
 // Define chat state interface
@@ -16,13 +16,9 @@ interface ChatState {
   error: string;
 }
 
-// Create initial state
+// Create the initial state
 const initialState: ChatState = {
-  messages: [{
-    type: 'system',
-    text: 'Welcome to Vibe Photoshop! Upload an image or enter a prompt to get started.',
-    timestamp: new Date()
-  }],
+  messages: [],
   prompt: '',
   error: ''
 };
@@ -34,10 +30,54 @@ const { subscribe, set, update } = writable<ChatState>(initialState);
 export const chatStore = {
   subscribe,
   
-  // Add a message
-  addMessage: (message: ChatMessage) => {
+  // Add a message to the chat
+  addMessage: (message: ChatMessage | string, type?: 'user' | 'assistant' | 'system') => {
+    update(state => {
+      // Handle both object and string message formats
+      let newMessage: ChatMessage;
+      
+      if (typeof message === 'string' && type) {
+        // Legacy format: string message + type
+        newMessage = {
+          type,
+          text: message,
+          timestamp: new Date()
+        };
+      } else if (typeof message === 'object') {
+        // New format: ChatMessage object
+        newMessage = message as ChatMessage;
+      } else {
+        console.error('Invalid message format');
+        return state;
+      }
+      
+      return {
+        ...state,
+        messages: [...state.messages, newMessage]
+      };
+    });
+  },
+  
+  // Update the last message in the chat
+  updateLastMessage: (message: ChatMessage) => {
+    update(state => {
+      if (state.messages.length === 0) return state;
+      
+      const messages = [...state.messages];
+      messages[messages.length - 1] = message;
+      
+      return {
+        ...state,
+        messages
+      };
+    });
+  },
+  
+  // Clear all messages
+  clearMessages: () => {
     update(state => ({
-      messages: [...state.messages, message]
+      ...state,
+      messages: []
     }));
   },
   
@@ -49,14 +89,6 @@ export const chatStore = {
     }));
   },
   
-  // Set error message
-  setError: (error: string) => {
-    update(state => ({
-      ...state,
-      error
-    }));
-  },
-  
   // Clear the prompt
   clearPrompt: () => {
     update(state => ({
@@ -65,22 +97,11 @@ export const chatStore = {
     }));
   },
   
-  // Reset chat (keep welcome message)
-  resetChat: () => {
+  // Set an error message
+  setError: (error: string) => {
     update(state => ({
-      ...initialState,
-      messages: [{
-        type: 'system',
-        text: 'Welcome to Vibe Photoshop! Upload an image or enter a prompt to get started.',
-        timestamp: new Date()
-      }]
-    }));
-  },
-  
-  // Clear all messages
-  clearMessages: () => {
-    update(() => ({
-      messages: []
+      ...state,
+      error
     }));
   }
 }; 

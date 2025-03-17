@@ -8,12 +8,20 @@
   import { onMount } from 'svelte';
   import { chatStore, type ChatMessage } from '$lib/stores/chatStore';
   import { uiStore } from '$lib/stores/uiStore';
-  import { generateImage, editImage, fileToBase64 } from '$lib/services/api/gemini';
+  import { generateContent, editImage, fileToBase64, getUserApiKey } from '$lib/services/api/gemini';
   import { toast } from '$lib/stores/toastStore';
+  import SvelteMarkdown from 'svelte-markdown';
+  import ModelSelector from './ModelSelector.svelte';
   
-  let prompt = '';
+  // Props (optional)
+  export let messages: ChatMessage[] = $chatStore.messages;
+  export let isGenerating: boolean = false;
+  export let prompt: string = '';
+  export let error: string = '';
+  export let processInput: (() => Promise<void>) | undefined = undefined;
+  
   let inputElement: HTMLInputElement;
-  let isGenerating = false;
+  let currentStreamingMessage = '';
   
   // Handle form submission
   async function handleSubmit(event: Event) {
@@ -21,8 +29,16 @@
     
     if (!prompt.trim() || isGenerating) return;
     
+    // If processInput is provided, use it
+    if (processInput) {
+      chatStore.setPrompt(prompt);
+      await processInput();
+      return;
+    }
+    
     try {
       isGenerating = true;
+      uiStore.setStreaming(true);
       console.log('Submitting prompt:', prompt);
       
       // Add user message to chat
@@ -36,14 +52,111 @@
       // Clear input and save current prompt
       const currentPrompt = prompt;
       prompt = '';
+      currentStreamingMessage = '';
       
-      // Process the input
-      await processInput(currentPrompt);
+      // Add initial assistant message
+      const streamingMessage: ChatMessage = {
+        type: 'assistant',
+        text: '',
+        timestamp: new Date()
+      };
+      chatStore.addMessage(streamingMessage);
+      
+      // Check if we're using the image generation model
+      if ($uiStore.selectedModel === 'gemini-2.0-flash-exp-image-generation') {
+        // Use server endpoint for image generation
+        await generateImageWithServer(currentPrompt, streamingMessage);
+      } else {
+        // Process the input with streaming for text generation
+        await generateContent(currentPrompt, {
+          onTextToken: (text) => {
+            currentStreamingMessage += text;
+            streamingMessage.text = currentStreamingMessage;
+            chatStore.updateLastMessage(streamingMessage);
+          },
+          onImage: (image) => {
+            if (!streamingMessage.images) streamingMessage.images = [];
+            streamingMessage.images.push(image);
+            chatStore.updateLastMessage(streamingMessage);
+            uiStore.setSelectedImage(image);
+          },
+          onComplete: () => {
+            uiStore.setStreaming(false);
+          }
+        });
+      }
     } catch (error) {
       console.error('Error processing input:', error);
       toast.error('Failed to process your request. Please try again.');
     } finally {
       isGenerating = false;
+      uiStore.setStreaming(false);
+    }
+  }
+  
+  // Generate image using server endpoint
+  async function generateImageWithServer(prompt: string, message: ChatMessage) {
+    const apiKey = getUserApiKey();
+    
+    if (!apiKey) {
+      throw new Error('No API key found. Please add your Gemini API key in settings.');
+    }
+    
+    console.log('🖼️ Generating image with server endpoint:', { prompt });
+    
+    try {
+      // Set initial message text
+      message.text = 'Generating image...';
+      chatStore.updateLastMessage(message);
+      
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          apiKey
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to generate image');
+      }
+      
+      const data = await response.json();
+      console.log('🖼️ Image generation response:', {
+        textCount: data.text.length,
+        imageCount: data.images.length,
+        textSample: data.text.length > 0 ? data.text[0].substring(0, 50) + '...' : 'No text'
+      });
+      
+      // Update message with text response
+      if (data.text.length > 0) {
+        message.text = data.text.join('\n');
+      } else {
+        message.text = 'Image generated successfully';
+      }
+      
+      // Add images to message
+      if (data.images.length > 0) {
+        if (!message.images) message.images = [];
+        for (const image of data.images) {
+          message.images.push(image);
+          uiStore.setSelectedImage(image);
+        }
+      } else {
+        message.text += '\n\nNo image was generated. Please try a different prompt.';
+      }
+      
+      // Update the message
+      chatStore.updateLastMessage(message);
+    } catch (error) {
+      console.error('Error generating image:', error);
+      message.text = `Error: ${error.message || 'Failed to generate image'}`;
+      chatStore.updateLastMessage(message);
+      throw error;
     }
   }
   
@@ -55,54 +168,6 @@
     }
   }
   
-  // Process user input
-  async function processInput(input: string) {
-    try {
-      console.log('Processing input:', input);
-      console.log('Current UI state:', $uiStore);
-      
-      const response = $uiStore.selectedImage 
-        ? await editImage($uiStore.selectedImage, input)
-        : await generateImage(input);
-      
-      console.log('Gemini response:', response);
-      
-      // Extract text from response
-      const responseText = Array.isArray(response.text) 
-        ? response.text.join('\n')
-        : typeof response.text === 'string' 
-          ? response.text 
-          : 'No response text available';
-      
-      // Add response to chat
-      const assistantMessage: ChatMessage = {
-        type: 'assistant',
-        text: responseText,
-        timestamp: new Date(),
-        images: response.images || []
-      };
-      chatStore.addMessage(assistantMessage);
-      
-      // Update the selected image if we got one back
-      if (response.images?.[0]) {
-        console.log('Setting new selected image');
-        uiStore.setSelectedImage(response.images[0]);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      
-      // Add error message to chat
-      const errorMessage: ChatMessage = {
-        type: 'system',
-        text: error instanceof Error ? error.message : 'An error occurred while processing your request.',
-        timestamp: new Date()
-      };
-      chatStore.addMessage(errorMessage);
-      
-      toast.error(error instanceof Error ? error.message : 'An error occurred');
-    }
-  }
-  
   // Focus input on mount
   onMount(() => {
     inputElement?.focus();
@@ -110,14 +175,24 @@
 
   // Debug log chat messages
   $: {
-    console.log('Current chat messages:', $chatStore.messages);
+    console.log('Current chat messages:', messages);
+  }
+  
+  // Use store values if props are not provided
+  $: {
+    if (!messages) messages = $chatStore.messages;
+    if (!prompt) prompt = $chatStore.prompt;
+    if (!error) error = $chatStore.error;
   }
 </script>
 
 <div class="flex flex-col h-full" style="background-color: var(--ps-secondary);">
+  <!-- Model selector -->
+  <ModelSelector />
+  
   <!-- Chat messages -->
   <div class="flex-1 overflow-y-auto p-3 space-y-3">
-    {#each $chatStore.messages as message}
+    {#each messages as message}
       <div class="flex {message.type === 'user' ? 'justify-end' : 'justify-start'}">
         <div 
           class="rounded px-3 py-2 max-w-[85%] shadow-md" 
@@ -127,7 +202,10 @@
             box-shadow: var(--ps-shadow);
           "
         >
-          <p class="text-sm" style="color: var(--ps-text);">{message.text}</p>
+          <div class="text-sm prose dark:prose-invert" style="color: var(--ps-text);">
+            <SvelteMarkdown source={message.text} />
+          </div>
+          
           {#if message.images && message.images.length > 0}
             <div class="mt-2 space-y-2">
               {#each message.images as image}
@@ -141,6 +219,7 @@
               {/each}
             </div>
           {/if}
+          
           <p class="text-xs opacity-70 mt-1 text-right" style="color: var(--ps-text);">
             {new Date(message.timestamp).toLocaleTimeString()}
           </p>
@@ -157,7 +236,11 @@
           type="text"
           bind:value={prompt}
           bind:this={inputElement}
-          placeholder={$uiStore.selectedImage ? "Describe how to edit the image..." : "Describe the image you want to generate..."}
+          placeholder={$uiStore.selectedModel === 'gemini-2.0-flash-exp-image-generation' 
+            ? "Describe the image you want to generate..." 
+            : $uiStore.selectedImage 
+              ? "Describe how to edit the image..." 
+              : "Ask a question or describe what you want..."}
           class="w-full py-2 px-3 text-sm focus:outline-none focus:ring-1"
           style="
             background-color: var(--ps-panel);
@@ -208,5 +291,20 @@
   input:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+  
+  :global(.prose) {
+    max-width: none;
+  }
+  
+  :global(.prose pre) {
+    background-color: var(--ps-panel);
+    border-radius: var(--ps-border-radius);
+  }
+  
+  :global(.prose code) {
+    background-color: var(--ps-panel);
+    border-radius: var(--ps-border-radius);
+    padding: 0.2em 0.4em;
   }
 </style> 

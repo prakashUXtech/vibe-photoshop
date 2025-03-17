@@ -6,8 +6,10 @@
  */
 
 import { browser } from '$app/environment';
-import { GoogleGenerativeAI, type GenerateContentResult, type GenerateContentResponse } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { ChatMessage } from '$lib/stores/chatStore';
+import { uiStore } from '$lib/stores/uiStore';
+import { get } from 'svelte/store';
 
 // Define response types
 interface GeminiResponse {
@@ -15,9 +17,10 @@ interface GeminiResponse {
   images: string[];
 }
 
-interface GeminiConversationResponse {
-  result: GeminiResponse;
-  updatedHistory: any[];
+interface StreamCallbacks {
+  onTextToken: (text: string) => void;
+  onImage: (image: string) => void;
+  onComplete: () => void;
 }
 
 // Initialize Gemini client
@@ -55,7 +58,10 @@ export function clearUserApiKey(): void {
  * @param prompt The text prompt to generate an image from
  * @returns A promise that resolves to the generated image and text
  */
-export async function generateImage(prompt: string): Promise<GeminiResponse> {
+export async function generateContent(
+  prompt: string,
+  callbacks: StreamCallbacks
+): Promise<GeminiResponse> {
   const apiKey = getUserApiKey();
   
   if (!apiKey) {
@@ -65,49 +71,86 @@ export async function generateImage(prompt: string): Promise<GeminiResponse> {
   try {
     const genAI = getGeminiClient(apiKey);
     
-    // Get the Gemini Flash model
+    // Use the image generation model
     const model = genAI.getGenerativeModel({
-      model: "models/gemini-2.0-flash-exp",
-      generationConfig: {
-        temperature: 0.9,
-        topP: 1,
-        topK: 1,
-        maxOutputTokens: 2048
-      }
+      model: "gemini-2.0-flash-exp-image-generation"
     });
-    
-    // Generate content
+
+    console.log('📊 Using model for content generation:', "gemini-2.0-flash-exp-image-generation");
+
+    // For image generation, we can't use streaming
     const result = await model.generateContent([
       { text: prompt }
     ]);
-    
-    const response = await result.response;
-    const candidates = response.candidates || [];
-    
-    if (candidates.length === 0) {
-      throw new Error('No content was generated. Please try a different prompt.');
-    }
-    
-    // Process the response parts (text and images)
-    const geminiResponse: GeminiResponse = {
+
+    const response: GeminiResponse = {
       text: [],
       images: []
     };
-    
-    // Extract text and images from response
-    const parts = candidates[0]?.content?.parts || [];
+
+    // Process the response
+    const parts = result.response.candidates?.[0]?.content?.parts || [];
     for (const part of parts) {
       if (part.text) {
-        geminiResponse.text.push(part.text);
+        response.text.push(part.text);
+        callbacks.onTextToken(part.text);
       } else if (part.inlineData) {
-        // Base64 image data
-        geminiResponse.images.push(part.inlineData.data);
+        response.images.push(part.inlineData.data);
+        callbacks.onImage(part.inlineData.data);
       }
     }
-    
-    return geminiResponse;
+
+    callbacks.onComplete();
+    return response;
   } catch (error) {
-    console.error('Error generating image:', error);
+    console.error('Error generating content:', error);
+    throw error;
+  }
+}
+
+export async function generateImage(prompt: string): Promise<GeminiResponse> {
+  const apiKey = getUserApiKey();
+  
+  if (!apiKey) {
+    throw new Error('No API key found. Please add your Gemini API key in settings.');
+  }
+
+  console.log('📤 CLIENT: Sending image generation request to server endpoint:', { prompt });
+
+  try {
+    // Add a direct console log to verify this code is being executed
+    console.log('🔍 CLIENT: About to fetch from /api/gemini endpoint');
+    
+    const response = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        prompt,
+        apiKey
+      })
+    });
+
+    console.log('📥 CLIENT: Received response status from server:', response.status);
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('❌ CLIENT: API error:', error);
+      throw new Error(error.message || 'Failed to generate image');
+    }
+
+    const data = await response.json();
+    console.log('✨ CLIENT: Processed response from server:', {
+      textResponseCount: data.text.length,
+      imageResponseCount: data.images.length,
+      textSample: data.text.length > 0 ? data.text[0].substring(0, 50) + '...' : 'No text',
+      hasImages: data.images.length > 0
+    });
+
+    return data;
+  } catch (error) {
+    console.error('❌ CLIENT: Error in generateImage:', error);
     throw error;
   }
 }
@@ -128,10 +171,8 @@ export async function editImage(imageData: string, editInstructions: string): Pr
   
   try {
     const genAI = getGeminiClient(apiKey);
-    
-    // Get the Gemini Flash model
     const model = genAI.getGenerativeModel({
-      model: "models/gemini-2.0-flash-exp",
+      model: get(uiStore).selectedModel,
       generationConfig: {
         temperature: 0.9,
         topP: 1,
@@ -140,7 +181,6 @@ export async function editImage(imageData: string, editInstructions: string): Pr
       }
     });
     
-    // Generate content with image and text
     const result = await model.generateContent([
       {
         inlineData: {
@@ -158,19 +198,16 @@ export async function editImage(imageData: string, editInstructions: string): Pr
       throw new Error('No content was generated. Please try a different prompt.');
     }
     
-    // Process the response parts (text and images)
     const geminiResponse: GeminiResponse = {
       text: [],
       images: []
     };
     
-    // Extract text and images from response
     const parts = candidates[0]?.content?.parts || [];
     for (const part of parts) {
       if (part.text) {
         geminiResponse.text.push(part.text);
       } else if (part.inlineData) {
-        // Base64 image data
         geminiResponse.images.push(part.inlineData.data);
       }
     }
@@ -192,7 +229,7 @@ export async function editImage(imageData: string, editInstructions: string): Pr
 export async function continueImageEditing(
   conversationHistory: any[],
   newInstruction: string
-): Promise<GeminiConversationResponse> {
+): Promise<GeminiResponse> {
   const apiKey = getUserApiKey();
   
   if (!apiKey) {
@@ -240,13 +277,7 @@ export async function continueImageEditing(
       }
     }
     
-    // Get the updated history
-    const updatedHistory = await chat.getHistory();
-    
-    return {
-      result: geminiResponse,
-      updatedHistory
-    };
+    return geminiResponse;
   } catch (error) {
     console.error('Error in conversation editing:', error);
     throw error;

@@ -37,6 +37,7 @@
 		"vite": "^6.0.0"
 	},
 	"dependencies": {
-		"@google/generative-ai": "^0.24.0"
+		"@google/generative-ai": "^0.24.0",
+		"svelte-markdown": "^0.4.1"
 	}
 }

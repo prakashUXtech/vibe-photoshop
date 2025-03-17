@@ -13,6 +13,8 @@ export interface UIState {
   loadingText: string;
   theme: Theme;
   selectedImage: string | null;
+  selectedModel: string;
+  isStreaming: boolean;
 }
 
 // Get initial theme from localStorage or default to system
@@ -46,7 +48,9 @@ const initialState: UIState = {
   loadingProgress: 0,
   loadingText: 'Initializing...',
   theme: getInitialTheme(),
-  selectedImage: null
+  selectedImage: null,
+  selectedModel: 'gemini-2.0-flash-exp-image-generation',
+  isStreaming: false
 };
 
 // Create the store
@@ -125,6 +129,22 @@ export const uiStore = {
     update(state => ({
       ...state,
       selectedImage: image
+    }));
+  },
+  
+  // Set selected model
+  setSelectedModel: (model: string) => {
+    update(state => ({
+      ...state,
+      selectedModel: model
+    }));
+  },
+  
+  // Set streaming state
+  setStreaming: (isStreaming: boolean) => {
+    update(state => ({
+      ...state,
+      isStreaming: isStreaming
     }));
   },
   

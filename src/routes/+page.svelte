@@ -103,7 +103,11 @@
     const apiKey = await userService.getUserApiKey();
     if (!apiKey) {
       chatStore.setError('Please set your Gemini API key in Settings');
-      chatStore.addMessage('Please set your Gemini API key in Settings to generate images.', 'system');
+      chatStore.addMessage({
+        type: 'system',
+        text: 'Please set your Gemini API key in Settings to generate images.',
+        timestamp: new Date()
+      });
       uiStore.setActiveTab('settings');
       return;
     }
@@ -113,7 +117,11 @@
     chatStore.clearPrompt();
     
     // Add user message
-    chatStore.addMessage(userPrompt, 'user');
+    chatStore.addMessage({
+      type: 'user',
+      text: userPrompt,
+      timestamp: new Date()
+    });
     
     // If we have a current image, generate a new version
     if ($imageStore.currentImage) {
@@ -129,11 +137,54 @@
     if (!browser) return;
     
     imageStore.setGenerating(true);
-    chatStore.addMessage('Generating image from prompt...', 'system');
+    chatStore.addMessage({
+      type: 'system',
+      text: 'Generating image from prompt...',
+      timestamp: new Date()
+    });
     
     try {
-      // Call the Gemini API
-      const result = await apiGenerateImage(userPrompt);
+      // Get API key
+      const apiKey = await userService.getUserApiKey();
+      
+      if (!apiKey) {
+        throw new Error('No API key found. Please add your Gemini API key in settings.');
+      }
+      
+      // Call the server endpoint directly
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: userPrompt,
+          apiKey
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to generate image');
+      }
+      
+      const result = await response.json();
+      console.log('Image generation response:', {
+        textCount: result.text.length,
+        imageCount: result.images.length,
+        textSample: result.text.length > 0 ? result.text[0].substring(0, 50) + '...' : 'No text'
+      });
+      
+      // Create a message with the response
+      const message: ChatMessage = {
+        type: 'assistant',
+        text: result.text.length > 0 ? result.text.join('\n') : 'Image generated successfully',
+        timestamp: new Date(),
+        images: result.images.length > 0 ? [...result.images] : undefined
+      };
+      
+      // Add the message to the chat
+      chatStore.addMessage(message);
       
       if (result.images.length === 0) {
         throw new Error('No image was generated. Please try a different prompt.');
@@ -149,16 +200,19 @@
       
       imageStore.setCurrentImage(newImage);
       
-      // Add any text response from the API
-      if (result.text.length > 0) {
-        chatStore.addMessage(result.text.join('\n'), 'system');
-      }
-      
-      chatStore.addMessage('Image generated successfully', 'system');
+      chatStore.addMessage({
+        type: 'system',
+        text: 'Image generated successfully',
+        timestamp: new Date()
+      });
     } catch (err) {
       const error = err as Error;
       chatStore.setError(error.message || 'Failed to generate image');
-      chatStore.addMessage(error.message || 'Failed to generate image. Please try again.', 'system');
+      chatStore.addMessage({
+        type: 'system',
+        text: error.message || 'Failed to generate image. Please try again.',
+        timestamp: new Date()
+      });
       console.error(err);
     } finally {
       imageStore.setGenerating(false);
@@ -170,7 +224,11 @@
     if (!browser || !$imageStore.currentImage) return;
     
     imageStore.setGenerating(true);
-    chatStore.addMessage('Generating new version of the image...', 'system');
+    chatStore.addMessage({
+      type: 'system',
+      text: 'Generating new version of the image...',
+      timestamp: new Date()
+    });
     
     try {
       // Get the current image
@@ -213,14 +271,26 @@
       
       // Add any text response from the API
       if (result.text.length > 0) {
-        chatStore.addMessage(result.text.join('\n'), 'system');
+        chatStore.addMessage({
+          type: 'system',
+          text: result.text.join('\n'),
+          timestamp: new Date()
+        });
       }
       
-      chatStore.addMessage('New version generated successfully', 'system');
+      chatStore.addMessage({
+        type: 'system',
+        text: 'New version generated successfully',
+        timestamp: new Date()
+      });
     } catch (err) {
       const error = err as Error;
       chatStore.setError(error.message || 'Failed to generate new version');
-      chatStore.addMessage(error.message || 'Failed to generate new version. Please try again.', 'system');
+      chatStore.addMessage({
+        type: 'system',
+        text: error.message || 'Failed to generate new version. Please try again.',
+        timestamp: new Date()
+      });
       console.error(err);
     } finally {
       imageStore.setGenerating(false);
@@ -232,7 +302,11 @@
     if (!browser) return;
     
     imageStore.resetSession();
-    chatStore.addMessage('Started a new session', 'system');
+    chatStore.addMessage({
+      type: 'system',
+      text: 'Started a new session',
+      timestamp: new Date()
+    });
   }
   
   // Download the current image
@@ -246,7 +320,11 @@
     link.click();
     document.body.removeChild(link);
     
-    chatStore.addMessage('Image downloaded', 'system');
+    chatStore.addMessage({
+      type: 'system',
+      text: 'Image downloaded',
+      timestamp: new Date()
+    });
   }
   
   // Set active tab
@@ -254,17 +332,114 @@
     uiStore.setActiveTab(tab);
   }
   
+  // Add a test function to directly call our server endpoint
+  async function testServerEndpoint() {
+    const apiKey = await userService.getUserApiKey();
+    if (!apiKey) {
+      alert('Please set your Gemini API key in Settings');
+      return;
+    }
+    
+    console.log('🧪 TEST: Directly calling server endpoint');
+    
+    try {
+      // Show a loading message
+      chatStore.addMessage({
+        type: 'system',
+        text: 'Testing image generation...',
+        timestamp: new Date()
+      });
+      
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: 'Generate a simple painting of grass with blue sky and a few white clouds',
+          apiKey
+        })
+      });
+      
+      console.log('🧪 TEST: Response status:', response.status);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('🧪 TEST: API error:', error);
+        chatStore.addMessage({
+          type: 'system',
+          text: `Error: ${error.message || 'Failed to generate image'}`,
+          timestamp: new Date()
+        });
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('🧪 TEST: Response data:', {
+        textCount: data.text.length,
+        imageCount: data.images.length,
+        textSample: data.text.length > 0 ? data.text[0].substring(0, 50) + '...' : 'No text'
+      });
+      
+      // Create a message with the response
+      const message: ChatMessage = {
+        type: 'assistant',
+        text: data.text.length > 0 ? data.text.join('\n') : 'Image generated successfully',
+        timestamp: new Date(),
+        images: data.images.length > 0 ? [...data.images] : undefined
+      };
+      
+      // Add the message to the chat
+      chatStore.addMessage(message);
+      
+      // Display the generated image in the canvas
+      if (data.images.length > 0) {
+        // Create a new image object
+        const newImage = await saveGeneratedImage(
+          '1', // User ID
+          data.images[0],
+          'Generate a simple painting of grass with blue sky and a few white clouds',
+          data.text.join('\n')
+        );
+        
+        // Set as current image
+        imageStore.setCurrentImage(newImage);
+      } else {
+        chatStore.addMessage({
+          type: 'system',
+          text: 'No image was generated. Please try a different prompt.',
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('🧪 TEST: Error:', error);
+      chatStore.addMessage({
+        type: 'system',
+        text: `Error: ${error}`,
+        timestamp: new Date()
+      });
+    }
+  }
+  
   // Initialize with a welcome message and loading simulation
   onMount(async () => {
     mounted = true;
     
     if ($chatStore.messages.length === 0) {
-      chatStore.addMessage('Welcome to Vibe Photoshop! Upload an image or enter a prompt to get started.', 'system');
+      chatStore.addMessage({
+        type: 'system',
+        text: 'Welcome to Vibe Photoshop! Upload an image or enter a prompt to get started.',
+        timestamp: new Date()
+      });
       
       // Check if API key is set
       const apiKey = await userService.getUserApiKey();
       if (!apiKey) {
-        chatStore.addMessage('Please set your Gemini API key in Settings to generate images.', 'system');
+        chatStore.addMessage({
+          type: 'system',
+          text: 'Please set your Gemini API key in Settings to generate images.',
+          timestamp: new Date()
+        });
         // We'll wait a bit before switching to settings to let the user see the welcome message
         setTimeout(() => {
           uiStore.setActiveTab('settings');
@@ -316,7 +491,12 @@
             <button
               class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
               style="border-radius: var(--ps-border-radius);"
-              on:click={() => document.querySelector('input[type="file"]')?.click()}
+              on:click={() => {
+                const fileInput = document.querySelector('input[type="file"]');
+                if (fileInput) {
+                  (fileInput as HTMLInputElement).click();
+                }
+              }}
             >
               Upload Image
             </button>
@@ -385,6 +565,16 @@
 {#if $uiStore.isLoading}
   <LoadingScreen loadingProgress={$uiStore.loadingProgress} loadingText={$uiStore.loadingText} />
 {/if}
+
+<!-- Add a test button in a visible location -->
+<div class="absolute top-2 right-2 z-50">
+  <button 
+    class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+    on:click={testServerEndpoint}
+  >
+    Test Server
+  </button>
+</div>
 {/if}
 
 <style>
