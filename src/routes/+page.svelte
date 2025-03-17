@@ -2,22 +2,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { currentTheme } from '$lib/stores/themeStore';
-  import { imageStore, chatStore, uiStore } from '$lib/stores';
-  import type { Image, ImageVersion } from '$lib/types';
-  
-  // Import services
-  import { 
-    generateImage as apiGenerateImage, 
-    editImage as apiEditImage,
-    fileToBase64,
-    userService
-  } from '$lib/services';
-  
-  import { 
-    saveGeneratedImage, 
-    addImageVersion 
-  } from '$lib/services';
+  import { imageStore } from '$lib/stores/imageStore';
+  import { chatStore, type ChatMessage } from '$lib/stores/chatStore';
+  import { uiStore } from '$lib/stores/uiStore';
+  import * as userService from '$lib/services/api/user';
+  import { generateImage as apiGenerateImage, editImage as apiEditImage } from '$lib/services/api/gemini';
+  import type { Image } from '$lib/types';
   
   // Import components
   import {
@@ -190,54 +180,45 @@
         throw new Error('No image was generated. Please try a different prompt.');
       }
       
-      try {
-        // Save the generated image
-        const newImage = await saveGeneratedImage(
-          '1', // User ID
-          result.images[0],
-          userPrompt,
-          result.text.join('\n')
-        );
-        
-        imageStore.setCurrentImage(newImage);
-        
-        chatStore.addMessage({
-          type: 'system',
-          text: 'Image generated and saved successfully',
-          timestamp: new Date()
-        });
-      } catch (storageError) {
-        // Handle storage quota error gracefully
-        console.error('Storage error:', storageError);
-        
-        if (storageError.message.includes('quota exceeded')) {
-          chatStore.addMessage({
-            type: 'system',
-            text: 'Warning: Could not save the image due to storage space limitations. Please delete some old images to free up space.',
-            timestamp: new Date()
-          });
-          
-          // Still show the generated image even if we couldn't save it
-          imageStore.setCurrentImage({
-            id: `temp-${Date.now()}`,
-            userId: '1',
+      // Create image object in memory
+      const timestamp = new Date();
+      const imageId = `img-${timestamp.getTime()}`;
+      
+      // Create image object
+      const newImage: Image = {
+        id: imageId,
+        userId: '1', // Default user ID
+        prompt: userPrompt,
+        imageUrl: `data:image/jpeg;base64,${result.images[0]}`,
+        thumbnail: `data:image/jpeg;base64,${result.images[0]}`,
+        status: 'completed',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        metadata: {
+          width: 1024,
+          height: 1024,
+          format: 'jpeg',
+          size: result.images[0].length
+        },
+        versions: [
+          {
+            id: `v-${timestamp.getTime()}`,
+            imageId,
             prompt: userPrompt,
             imageUrl: `data:image/jpeg;base64,${result.images[0]}`,
-            status: 'completed',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            metadata: {
-              width: 1024,
-              height: 1024,
-              format: 'jpeg',
-              size: result.images[0].length
-            },
-            versions: []
-          });
-        } else {
-          throw storageError; // Re-throw other storage errors
-        }
-      }
+            createdAt: timestamp
+          }
+        ]
+      };
+      
+      // Update the image store
+      imageStore.setCurrentImage(newImage);
+      
+      chatStore.addMessage({
+        type: 'system',
+        text: 'Image generated successfully',
+        timestamp: new Date()
+      });
     } catch (err) {
       const error = err as Error;
       chatStore.setError(error.message || 'Failed to generate image');
@@ -302,57 +283,18 @@
         throw new Error('No image was generated. Please try a different prompt.');
       }
       
-      try {
-        // Add the new version to the current image
-        console.log('💾 EDIT: Adding new version to image:', currentImage.id);
-        const updatedImage = await addImageVersion(
-          currentImage.id,
-          result.images[0],
-          userPrompt,
-          result.text.join('\n')
-        );
-        
-        console.log('✨ EDIT: Version added successfully:', {
-          success: !!updatedImage,
-          newVersionCount: updatedImage?.versions.length || 0
-        });
-        
-        if (updatedImage) {
-          console.log('🔄 EDIT: Updating current image in store');
-          imageStore.setCurrentImage(updatedImage);
-        }
-      } catch (storageError) {
-        // Handle storage quota error gracefully
-        console.error('⚠️ EDIT: Storage error:', storageError);
-        
-        if (storageError.message.includes('quota exceeded')) {
-          chatStore.addMessage({
-            type: 'system',
-            text: 'Warning: Could not save the edited version due to storage space limitations. Please delete some old images to free up space.',
-            timestamp: new Date()
-          });
-          
-          // Still show the edited image even if we couldn't save it
-          const timestamp = new Date();
-          imageStore.setCurrentImage({
-            ...currentImage,
-            imageUrl: `data:image/jpeg;base64,${result.images[0]}`,
-            updatedAt: timestamp,
-            versions: [
-              ...currentImage.versions,
-              {
-                id: `v-${timestamp.getTime()}`,
-                imageId: currentImage.id,
-                prompt: userPrompt,
-                imageUrl: `data:image/jpeg;base64,${result.images[0]}`,
-                createdAt: timestamp
-              }
-            ]
-          });
-        } else {
-          throw storageError; // Re-throw other storage errors
-        }
-      }
+      // Create new version
+      const timestamp = new Date();
+      const newVersion = {
+        id: `v-${timestamp.getTime()}`,
+        imageId: currentImage.id,
+        prompt: userPrompt,
+        imageUrl: `data:image/jpeg;base64,${result.images[0]}`,
+        createdAt: timestamp
+      };
+      
+      // Add version to current image in memory
+      imageStore.addVersion(newVersion);
       
       // Add any text response from the API
       if (result.text.length > 0) {
