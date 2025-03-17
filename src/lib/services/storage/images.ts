@@ -107,13 +107,21 @@ export async function addImageVersion(
   prompt: string,
   responseText?: string
 ): Promise<Image | null> {
-  if (!browser) return null;
+  if (!browser) {
+    console.error('❌ STORAGE: Cannot add version in server context');
+    return null;
+  }
   
   try {
+    console.log('📦 STORAGE: Getting image from storage:', imageId);
     // Get the image from storage
     const image = getImageFromStorage(imageId);
-    if (!image) return null;
+    if (!image) {
+      console.error('❌ STORAGE: Image not found in storage:', imageId);
+      return null;
+    }
     
+    console.log('🗜️ STORAGE: Compressing new version image');
     // Compress the new version
     const compressedImage = await compressImage(base64Image);
     
@@ -124,9 +132,16 @@ export async function addImageVersion(
       id: `v-${timestamp.getTime()}`,
       imageId,
       prompt,
+      responseText,
       imageUrl: `data:image/jpeg;base64,${compressedImage}`,
       createdAt: timestamp
     };
+    
+    console.log('📝 STORAGE: Creating new version:', {
+      versionId: newVersion.id,
+      imageId: newVersion.imageId,
+      hasResponseText: !!responseText
+    });
     
     // Update image
     const updatedImage: Image = {
@@ -140,27 +155,36 @@ export async function addImageVersion(
     const imageJson = JSON.stringify(updatedImage);
     const dataSize = getDataSize(imageJson);
     
+    console.log('💾 STORAGE: Checking storage space for new version:', {
+      size: dataSize,
+      versionsCount: updatedImage.versions.length
+    });
+    
     if (!hasEnoughStorage(dataSize)) {
+      console.log('⚠️ STORAGE: Storage quota exceeded, attempting cleanup');
       // Try to clean up old versions first
       await cleanupOldVersions(imageId);
       
       // Check again after cleanup
       if (!hasEnoughStorage(dataSize)) {
+        console.error('❌ STORAGE: Storage quota still exceeded after cleanup');
         throw new Error('Storage quota exceeded. Please delete some images to free up space.');
       }
+      console.log('✅ STORAGE: Cleanup successful, proceeding with save');
     }
     
     // Save to local storage
     try {
+      console.log('💾 STORAGE: Saving updated image to storage');
       localStorage.setItem(`${STORAGE_PREFIX}image_${imageId}`, imageJson);
+      console.log('✅ STORAGE: Image saved successfully');
+      return updatedImage;
     } catch (error) {
-      console.error('Error saving image version to local storage:', error);
+      console.error('❌ STORAGE: Error saving image version to local storage:', error);
       throw new Error('Failed to save image version. Storage quota may be exceeded.');
     }
-    
-    return updatedImage;
   } catch (error) {
-    console.error('Error in addImageVersion:', error);
+    console.error('❌ STORAGE: Error in addImageVersion:', error);
     throw error;
   }
 }

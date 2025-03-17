@@ -266,15 +266,19 @@
     try {
       // Get the current image
       const currentImage = $imageStore.currentImage;
+      console.log('🎨 EDIT: Starting image edit with current image:', {
+        imageId: currentImage.id,
+        versionsCount: currentImage.versions.length,
+        prompt: userPrompt
+      });
       
       // Extract base64 data from image URL
-      // This is a simplification - in a real app, you'd need to handle different URL formats
       let base64Data = '';
       if (currentImage.imageUrl.startsWith('data:')) {
         base64Data = currentImage.imageUrl.split(',')[1];
+        console.log('🖼️ EDIT: Successfully extracted base64 data from current image');
       } else {
-        // For demo purposes with picsum photos, we'll generate a new random image
-        // In a real app, you'd need to fetch the image and convert it to base64
+        console.log('⚠️ EDIT: Image URL is not base64, generating new image instead');
         const result = await apiGenerateImage(userPrompt);
         
         if (result.images.length === 0) {
@@ -285,21 +289,69 @@
       }
       
       // Call the Gemini API to edit the image
+      console.log('📤 EDIT: Calling Gemini API with prompt:', userPrompt);
       const result = await apiEditImage(base64Data, userPrompt);
+      
+      console.log('📥 EDIT: Received API response:', {
+        hasImages: result.images.length > 0,
+        hasText: result.text.length > 0,
+        firstImageSize: result.images[0]?.length || 0
+      });
       
       if (result.images.length === 0) {
         throw new Error('No image was generated. Please try a different prompt.');
       }
       
-      // Add the new version to the current image
-      const updatedImage = addImageVersion(
-        currentImage.id,
-        result.images[0],
-        userPrompt
-      );
-      
-      if (updatedImage) {
-        imageStore.setCurrentImage(updatedImage);
+      try {
+        // Add the new version to the current image
+        console.log('💾 EDIT: Adding new version to image:', currentImage.id);
+        const updatedImage = await addImageVersion(
+          currentImage.id,
+          result.images[0],
+          userPrompt,
+          result.text.join('\n')
+        );
+        
+        console.log('✨ EDIT: Version added successfully:', {
+          success: !!updatedImage,
+          newVersionCount: updatedImage?.versions.length || 0
+        });
+        
+        if (updatedImage) {
+          console.log('🔄 EDIT: Updating current image in store');
+          imageStore.setCurrentImage(updatedImage);
+        }
+      } catch (storageError) {
+        // Handle storage quota error gracefully
+        console.error('⚠️ EDIT: Storage error:', storageError);
+        
+        if (storageError.message.includes('quota exceeded')) {
+          chatStore.addMessage({
+            type: 'system',
+            text: 'Warning: Could not save the edited version due to storage space limitations. Please delete some old images to free up space.',
+            timestamp: new Date()
+          });
+          
+          // Still show the edited image even if we couldn't save it
+          const timestamp = new Date();
+          imageStore.setCurrentImage({
+            ...currentImage,
+            imageUrl: `data:image/jpeg;base64,${result.images[0]}`,
+            updatedAt: timestamp,
+            versions: [
+              ...currentImage.versions,
+              {
+                id: `v-${timestamp.getTime()}`,
+                imageId: currentImage.id,
+                prompt: userPrompt,
+                imageUrl: `data:image/jpeg;base64,${result.images[0]}`,
+                createdAt: timestamp
+              }
+            ]
+          });
+        } else {
+          throw storageError; // Re-throw other storage errors
+        }
       }
       
       // Add any text response from the API
@@ -318,13 +370,13 @@
       });
     } catch (err) {
       const error = err as Error;
+      console.error('❌ EDIT: Error generating new version:', error);
       chatStore.setError(error.message || 'Failed to generate new version');
       chatStore.addMessage({
         type: 'system',
         text: error.message || 'Failed to generate new version. Please try again.',
         timestamp: new Date()
       });
-      console.error(err);
     } finally {
       imageStore.setGenerating(false);
     }
