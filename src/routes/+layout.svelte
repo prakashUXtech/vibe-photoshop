@@ -32,7 +32,7 @@
 <svelte:window on:click={handleClickOutside} />
 
 <div 
-	class="min-h-screen flex flex-col"
+	class="h-screen flex flex-col overflow-hidden"
 	style="
 		--ps-primary: {$currentTheme.primary};
 		--ps-secondary: {$currentTheme.secondary};
@@ -51,7 +51,7 @@
 >
 	<!-- Application title bar (Photoshop-style) -->
 	<header 
-		class="border-b flex items-center justify-between py-1 px-4"
+		class="border-b flex items-center justify-between py-1 px-4 flex-shrink-0"
 		style="
 			background-color: var(--ps-secondary);
 			border-color: var(--ps-border);
@@ -154,7 +154,9 @@
 	</header>
 	
 	<!-- Page content -->
-	<slot />
+	<div class="flex-1 overflow-hidden">
+		<slot />
+	</div>
 </div>
 
 <style>

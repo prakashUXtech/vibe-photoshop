@@ -318,11 +318,11 @@
   </div>
 {:else}
   <!-- Photoshop-inspired UI with theme variables -->
-  <div class="flex-1 flex flex-col" style="background-color: var(--ps-primary); color: var(--ps-text);">
+  <div class="h-full flex flex-col" style="background-color: var(--ps-primary); color: var(--ps-text);">
     <!-- Main content area -->
-    <main class="flex-1 flex flex-col md:flex-row">
+    <main class="flex flex-col md:flex-row flex-1 overflow-hidden">
       <!-- Left side: Image display (main canvas) -->
-      <div class="w-full md:w-2/3 flex flex-col">
+      <div class="w-full md:w-2/3 flex flex-col h-full overflow-hidden">
         <!-- Tool options bar -->
         <div class="p-2 flex items-center justify-between" style="background-color: var(--ps-secondary); border-color: var(--ps-border);">
           <div class="flex space-x-2">
@@ -356,8 +356,8 @@
         </div>
         
         <!-- Canvas area -->
-        <div class="flex-1 p-4 flex flex-col" style="background-color: var(--ps-primary);">
-          <div class="flex-1 flex items-center justify-center overflow-auto">
+        <div class="flex-1 p-4 flex flex-col overflow-auto" style="background-color: var(--ps-primary);">
+          <div class="flex-1 flex items-center justify-center">
             {#if currentImage}
               <!-- Image display -->
               <div class="relative shadow-lg" style="background-color: var(--ps-secondary); box-shadow: var(--ps-shadow);">
@@ -459,7 +459,7 @@
       </div>
       
       <!-- Right side: Panels -->
-      <div class="w-full md:w-1/3 border-l flex flex-col h-[96vh] overflow-y-auto" style="border-color: var(--ps-border);">
+      <div class="w-full md:w-1/3 border-l flex flex-col h-full overflow-hidden" style="border-color: var(--ps-border);">
         <!-- Panel tabs - Photoshop style -->
         <div class="flex border-b" style="background-color: var(--ps-secondary); border-color: var(--ps-border);">
           <button 
@@ -502,7 +502,6 @@
               <div 
                 bind:this={chatContainer}
                 class="flex-1 overflow-y-auto p-3 space-y-3"
-                style="height: calc(100% - 64px);"
               >
                 {#each messages as message}
                   <div class="flex {message.type === 'user' ? 'justify-end' : 'justify-start'}">
@@ -539,7 +538,7 @@
               </div>
               
               <!-- Prompt input - Fixed at bottom, styled like Photoshop -->
-              <div class="p-3 border-t sticky bottom-0" style="background-color: var(--ps-secondary); border-color: var(--ps-border);">
+              <div class="p-3 border-t" style="background-color: var(--ps-secondary); border-color: var(--ps-border);">
                 <form on:submit|preventDefault={processInput} class="flex items-center">
                   <div class="flex-grow relative">
                     <input
