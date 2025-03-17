@@ -2,13 +2,21 @@
   ChatPanel.svelte
   This component handles user input and displays chat messages
   for image generation and editing conversations.
+  Updated to support continuous image editing with conversation history.
 -->
 
 <script lang="ts">
   import { onMount } from 'svelte';
   import { chatStore, type ChatMessage } from '$lib/stores/chatStore';
   import { uiStore } from '$lib/stores/uiStore';
-  import { generateContent, editImage, fileToBase64, getUserApiKey } from '$lib/services/api/gemini';
+  import { 
+    generateContent, 
+    editImage, 
+    continueImageEditing,
+    fileToBase64, 
+    getUserApiKey,
+    formatChatHistoryForGemini
+  } from '$lib/services/api/gemini';
   import { toast } from '$lib/stores/toastStore';
   import SvelteMarkdown from 'svelte-markdown';
   import ModelSelector from './ModelSelector.svelte';
@@ -22,6 +30,8 @@
   
   let inputElement: HTMLInputElement;
   let currentStreamingMessage = '';
+  let conversationHistory: any[] = [];
+  let isEditingImage = false;
   
   // Handle form submission
   async function handleSubmit(event: Event) {
@@ -66,6 +76,15 @@
       if ($uiStore.selectedModel === 'gemini-2.0-flash-exp-image-generation') {
         // Use server endpoint for image generation
         await generateImageWithServer(currentPrompt, streamingMessage);
+      } else if ($uiStore.selectedImage) {
+        // We have a selected image, so we're editing
+        if (isEditingImage && conversationHistory.length > 0) {
+          // Continue the editing conversation
+          await continueImageEditingWithServer(currentPrompt, streamingMessage);
+        } else {
+          // Start a new image editing conversation
+          await editImageWithServer(currentPrompt, streamingMessage);
+        }
       } else {
         // Process the input with streaming for text generation
         await generateContent(currentPrompt, {
@@ -85,9 +104,12 @@
           }
         });
       }
+      
     } catch (error) {
       console.error('Error processing input:', error);
-      toast.error('Failed to process your request. Please try again.');
+      error = error.message || 'An error occurred';
+      streamingMessage.text = `Error: ${error}`;
+      chatStore.updateLastMessage(streamingMessage);
     } finally {
       isGenerating = false;
       uiStore.setStreaming(false);
@@ -96,18 +118,8 @@
   
   // Generate image using server endpoint
   async function generateImageWithServer(prompt: string, message: ChatMessage) {
-    const apiKey = getUserApiKey();
-    
-    if (!apiKey) {
-      throw new Error('No API key found. Please add your Gemini API key in settings.');
-    }
-    
-    console.log('🖼️ Generating image with server endpoint:', { prompt });
-    
     try {
-      // Set initial message text
-      message.text = 'Generating image...';
-      chatStore.updateLastMessage(message);
+      console.log('Generating image with prompt:', prompt);
       
       const response = await fetch('/api/gemini', {
         method: 'POST',
@@ -116,7 +128,7 @@
         },
         body: JSON.stringify({
           prompt,
-          apiKey
+          apiKey: getUserApiKey()
         })
       });
       
@@ -126,35 +138,175 @@
       }
       
       const data = await response.json();
-      console.log('🖼️ Image generation response:', {
-        textCount: data.text.length,
-        imageCount: data.images.length,
-        textSample: data.text.length > 0 ? data.text[0].substring(0, 50) + '...' : 'No text'
-      });
       
-      // Update message with text response
-      if (data.text.length > 0) {
-        message.text = data.text.join('\n');
-      } else {
-        message.text = 'Image generated successfully';
+      // Update the message with the response
+      message.text = data.text.join('\n');
+      
+      if (data.images && data.images.length > 0) {
+        message.images = data.images;
+        // Set the first image as the selected image
+        uiStore.setSelectedImage(data.images[0]);
       }
       
-      // Add images to message
-      if (data.images.length > 0) {
-        if (!message.images) message.images = [];
-        for (const image of data.images) {
-          message.images.push(image);
-          uiStore.setSelectedImage(image);
-        }
-      } else {
-        message.text += '\n\nNo image was generated. Please try a different prompt.';
-      }
-      
-      // Update the message
       chatStore.updateLastMessage(message);
+      
+      // Reset conversation history since we're starting fresh
+      conversationHistory = [];
+      isEditingImage = false;
+      
     } catch (error) {
       console.error('Error generating image:', error);
       message.text = `Error: ${error.message || 'Failed to generate image'}`;
+      chatStore.updateLastMessage(message);
+      throw error;
+    }
+  }
+  
+  // Edit image using server endpoint
+  async function editImageWithServer(instructions: string, message: ChatMessage) {
+    try {
+      console.log('Editing image with instructions:', instructions);
+      
+      // Get the selected image
+      const imageData = $uiStore.selectedImage;
+      if (!imageData) {
+        throw new Error('No image selected for editing');
+      }
+      
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: instructions,
+          apiKey: getUserApiKey(),
+          imageData
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to edit image');
+      }
+      
+      const data = await response.json();
+      
+      // Update the message with the response
+      message.text = data.text.join('\n');
+      
+      if (data.images && data.images.length > 0) {
+        message.images = data.images;
+        // Set the first image as the selected image
+        uiStore.setSelectedImage(data.images[0]);
+      }
+      
+      chatStore.updateLastMessage(message);
+      
+      // Initialize conversation history for continuous editing
+      // Start with the initial user message and model response
+      conversationHistory = [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                mimeType: 'image/jpeg',
+                data: imageData
+              }
+            },
+            { text: instructions }
+          ]
+        },
+        {
+          role: 'model',
+          parts: [
+            ...(data.text.map(text => ({ text }))),
+            ...(data.images?.map(img => ({ 
+              inlineData: { 
+                mimeType: 'image/jpeg', 
+                data: img 
+              } 
+            })) || [])
+          ]
+        }
+      ];
+      
+      // Mark that we're now in an editing session
+      isEditingImage = true;
+      
+    } catch (error) {
+      console.error('Error editing image:', error);
+      message.text = `Error: ${error.message || 'Failed to edit image'}`;
+      chatStore.updateLastMessage(message);
+      throw error;
+    }
+  }
+  
+  // Continue image editing conversation
+  async function continueImageEditingWithServer(instructions: string, message: ChatMessage) {
+    try {
+      console.log('Continuing image edit with instructions:', instructions);
+      console.log('Using conversation history with length:', conversationHistory.length);
+      
+      const response = await fetch('/api/gemini/continuous-edit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: instructions,
+          apiKey: getUserApiKey(),
+          conversationHistory
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to continue image editing');
+      }
+      
+      const data = await response.json();
+      
+      // Update the message with the response
+      message.text = data.text.join('\n');
+      
+      if (data.images && data.images.length > 0) {
+        message.images = data.images;
+        // Set the first image as the selected image
+        uiStore.setSelectedImage(data.images[0]);
+      }
+      
+      chatStore.updateLastMessage(message);
+      
+      // Update conversation history with the new exchange
+      if (data.updatedHistory) {
+        conversationHistory = data.updatedHistory;
+      } else {
+        // Fallback if updatedHistory is not provided
+        conversationHistory.push(
+          {
+            role: 'user',
+            parts: [{ text: instructions }]
+          },
+          {
+            role: 'model',
+            parts: [
+              ...(data.text.map(text => ({ text }))),
+              ...(data.images?.map(img => ({ 
+                inlineData: { 
+                  mimeType: 'image/jpeg', 
+                  data: img 
+                } 
+              })) || [])
+            ]
+          }
+        );
+      }
+      
+    } catch (error) {
+      console.error('Error continuing image edit:', error);
+      message.text = `Error: ${error.message || 'Failed to continue image editing'}`;
       chatStore.updateLastMessage(message);
       throw error;
     }
@@ -176,6 +328,18 @@
   // Debug log chat messages
   $: {
     console.log('Current chat messages:', messages);
+  }
+  
+  // Reset editing state when selected image changes
+  $: if ($uiStore.selectedImage) {
+    // Only reset if we're not already editing this image
+    if (!isEditingImage) {
+      conversationHistory = [];
+    }
+  } else {
+    // No image selected, reset editing state
+    isEditingImage = false;
+    conversationHistory = [];
   }
   
   // Use store values if props are not provided
@@ -239,7 +403,9 @@
           placeholder={$uiStore.selectedModel === 'gemini-2.0-flash-exp-image-generation' 
             ? "Describe the image you want to generate..." 
             : $uiStore.selectedImage 
-              ? "Describe how to edit the image..." 
+              ? isEditingImage 
+                ? "Continue editing the image..." 
+                : "Describe how to edit the image..." 
               : "Ask a question or describe what you want..."}
           class="w-full py-2 px-3 text-sm focus:outline-none focus:ring-1"
           style="
@@ -266,6 +432,12 @@
         </svg>
       </button>
     </form>
+    
+    {#if isEditingImage && conversationHistory.length > 0}
+      <div class="mt-2 text-xs opacity-70 text-center" style="color: var(--ps-text);">
+        Continuing image editing conversation ({conversationHistory.length / 2} exchanges)
+      </div>
+    {/if}
   </div>
 </div>
 

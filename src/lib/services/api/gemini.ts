@@ -3,6 +3,7 @@
  * 
  * This service provides functions to interact with Google's Gemini API
  * for image generation and editing using the official @google/generative-ai package.
+ * Updated to support continuous image editing conversations.
  */
 
 import { browser } from '$app/environment';
@@ -15,6 +16,7 @@ import { get } from 'svelte/store';
 interface GeminiResponse {
   text: string[];
   images: string[];
+  updatedHistory?: any[];
 }
 
 interface StreamCallbacks {
@@ -169,52 +171,40 @@ export async function editImage(imageData: string, editInstructions: string): Pr
     throw new Error('No API key found. Please add your Gemini API key in settings.');
   }
   
+  console.log('📤 CLIENT: Sending image edit request to server endpoint');
+
   try {
-    const genAI = getGeminiClient(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: get(uiStore).selectedModel,
-      generationConfig: {
-        temperature: 0.9,
-        topP: 1,
-        topK: 1,
-        maxOutputTokens: 2048
-      }
-    });
-    
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: "image/jpeg",
-          data: imageData
-        }
+    const response = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-      { text: editInstructions }
-    ]);
-    
-    const response = await result.response;
-    const candidates = response.candidates || [];
-    
-    if (candidates.length === 0) {
-      throw new Error('No content was generated. Please try a different prompt.');
+      body: JSON.stringify({
+        prompt: editInstructions,
+        apiKey,
+        imageData
+      })
+    });
+
+    console.log('📥 CLIENT: Received response status from server:', response.status);
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('❌ CLIENT: API error:', error);
+      throw new Error(error.message || 'Failed to edit image');
     }
-    
-    const geminiResponse: GeminiResponse = {
-      text: [],
-      images: []
-    };
-    
-    const parts = candidates[0]?.content?.parts || [];
-    for (const part of parts) {
-      if (part.text) {
-        geminiResponse.text.push(part.text);
-      } else if (part.inlineData) {
-        geminiResponse.images.push(part.inlineData.data);
-      }
-    }
-    
-    return geminiResponse;
+
+    const data = await response.json();
+    console.log('✨ CLIENT: Processed response from server:', {
+      textResponseCount: data.text.length,
+      imageResponseCount: data.images.length,
+      textSample: data.text.length > 0 ? data.text[0].substring(0, 50) + '...' : 'No text',
+      hasImages: data.images.length > 0
+    });
+
+    return data;
   } catch (error) {
-    console.error('Error editing image:', error);
+    console.error('❌ CLIENT: Error in editImage:', error);
     throw error;
   }
 }
@@ -236,50 +226,40 @@ export async function continueImageEditing(
     throw new Error('No API key found. Please add your Gemini API key in settings.');
   }
   
+  console.log('📤 CLIENT: Sending continuous edit request to server endpoint');
+  
   try {
-    const genAI = getGeminiClient(apiKey);
-    
-    // Get the Gemini Flash model
-    const model = genAI.getGenerativeModel({
-      model: "models/gemini-2.0-flash-exp",
-      generationConfig: {
-        temperature: 0.9,
-        topP: 1,
-        topK: 1,
-        maxOutputTokens: 2048
-      }
+    const response = await fetch('/api/gemini/continuous-edit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        prompt: newInstruction,
+        apiKey,
+        conversationHistory
+      })
     });
-    
-    // Start a chat
-    const chat = model.startChat({
-      history: conversationHistory
-    });
-    
-    // Send the new instruction
-    const result = await chat.sendMessage(newInstruction);
-    const response = await result.response;
-    
-    // Process the response parts (text and images)
-    const geminiResponse: GeminiResponse = {
-      text: [],
-      images: []
-    };
-    
-    // Extract text and images from response
-    const candidates = response.candidates || [];
-    const parts = candidates[0]?.content?.parts || [];
-    for (const part of parts) {
-      if (part.text) {
-        geminiResponse.text.push(part.text);
-      } else if (part.inlineData) {
-        // Base64 image data
-        geminiResponse.images.push(part.inlineData.data);
-      }
+
+    console.log('📥 CLIENT: Received response status from server:', response.status);
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('❌ CLIENT: API error:', error);
+      throw new Error(error.message || 'Failed to continue image editing');
     }
-    
-    return geminiResponse;
+
+    const data = await response.json();
+    console.log('✨ CLIENT: Processed continuous edit response:', {
+      textResponseCount: data.text.length,
+      imageResponseCount: data.images.length,
+      hasUpdatedHistory: !!data.updatedHistory,
+      historyLength: data.updatedHistory?.length || 0
+    });
+
+    return data;
   } catch (error) {
-    console.error('Error in conversation editing:', error);
+    console.error('❌ CLIENT: Error in continueImageEditing:', error);
     throw error;
   }
 }
@@ -291,10 +271,32 @@ export async function continueImageEditing(
  * @returns Formatted conversation history for Gemini API
  */
 export function formatChatHistoryForGemini(messages: ChatMessage[]): any[] {
-  return messages.map(message => ({
-    role: message.type === 'user' ? 'user' : 'model',
-    parts: [{ text: message.text }]
-  }));
+  return messages.map(message => {
+    // Basic structure for the message
+    const formattedMessage: any = {
+      role: message.type === 'user' ? 'user' : 'model',
+      parts: []
+    };
+    
+    // Add text part if present
+    if (message.text) {
+      formattedMessage.parts.push({ text: message.text });
+    }
+    
+    // Add image parts if present
+    if (message.images && message.images.length > 0) {
+      for (const imageData of message.images) {
+        formattedMessage.parts.push({
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: imageData
+          }
+        });
+      }
+    }
+    
+    return formattedMessage;
+  });
 }
 
 /**

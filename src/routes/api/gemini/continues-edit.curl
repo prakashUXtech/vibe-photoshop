@@ -1,0 +1,64 @@
+API_KEY="YOUR_API_KEY"
+
+# TODO: Make the following files available on the local file system.
+FILES=("image_croissant.jpeg" "")
+MIME_TYPES=("image/jpeg" "image/png")
+for i in "${!FILES[@]}"; do
+  NUM_BYTES=$(wc -c < "${FILES[$i]}")
+  curl "https://generativelanguage.googleapis.com/upload/v1beta/files?key=${API_KEY}" \
+    -H "X-Goog-Upload-Command: start, upload, finalize" \
+    -H "X-Goog-Upload-Header-Content-Length: ${NUM_BYTES}" \
+    -H "X-Goog-Upload-Header-Content-Type: ${MIME_TYPES[$i]}" \
+    -H "Content-Type: application/json" \
+    -d "{'file': {'display_name': '${FILES[$i]}'}}" \
+    --data-binary "@${FILES[$i]}"
+  # TODO: Read the file.uri from the response, store it as FILE_URI_${i}
+done
+
+curl \
+  -X POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${API_KEY} \
+  -H 'Content-Type: application/json' \
+  -d @<(echo '{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "fileData": {
+            "fileUri": "${FILE_URI_0}",
+            "mimeType": "image/jpeg"
+          }
+        },
+        {
+          "text": "Add some chocolate drizzle to the croissants."
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "fileData": {
+            "fileUri": "${FILE_URI_1}",
+            "mimeType": "image/png"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "INSERT_INPUT_HERE"
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "temperature": 1,
+    "topK": 40,
+    "topP": 0.95,
+    "maxOutputTokens": 8192,
+    "responseMimeType": "text/plain"
+  }
+}')
