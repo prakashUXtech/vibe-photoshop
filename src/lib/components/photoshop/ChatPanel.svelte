@@ -6,7 +6,7 @@
 -->
 
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, afterUpdate } from 'svelte';
   import { chatStore, type ChatMessage } from '$lib/stores/chatStore';
   import { uiStore } from '$lib/stores/uiStore';
   import { imageStore } from '$lib/stores/imageStore';
@@ -23,7 +23,6 @@
   import ModelSelector from './ModelSelector.svelte';
   
   // Props (optional)
-  export let messages: ChatMessage[] = $chatStore.messages;
   export let isGenerating: boolean = false;
   export let prompt: string = '';
   export let error: string = '';
@@ -35,6 +34,26 @@
   let conversationHistory: any[] = [];
   let isEditingImage = false;
   
+  // Load messages from the chat store
+  let messages: ChatMessage[] = [];
+  
+  // Update messages whenever the store changes
+  function updateMessages() {
+    messages = chatStore.messages;
+    console.log('Messages updated:', messages);
+  }
+  
+  // Subscribe to the chatStore and update messages when it changes
+  const unsubscribe = chatStore.subscribe(() => {
+    updateMessages();
+  });
+  
+  // Initial load and cleanup
+  onMount(() => {
+    updateMessages();
+    return unsubscribe;
+  });
+  
   // Scroll to bottom of chat
   function scrollToBottom() {
     if (chatContainer) {
@@ -42,9 +61,13 @@
     }
   }
   
-  // Watch messages for changes and scroll
-  $: if (messages) {
-    // Use setTimeout to ensure DOM is updated
+  // Scroll to bottom after messages update
+  afterUpdate(() => {
+    scrollToBottom();
+  });
+  
+  // Also watch messages explicitly for changes
+  $: if (messages.length) {
     setTimeout(scrollToBottom, 100);
   }
   
@@ -340,11 +363,6 @@
   onMount(() => {
     inputElement?.focus();
   });
-
-  // Debug log chat messages
-  $: {
-    console.log('Current chat messages:', messages);
-  }
   
   // Reset editing state when selected image changes
   $: if ($uiStore.selectedImage) {
@@ -360,7 +378,6 @@
   
   // Use store values if props are not provided
   $: {
-    if (!messages) messages = $chatStore.messages;
     if (!prompt) prompt = $chatStore.prompt;
     if (!error) error = $chatStore.error;
   }

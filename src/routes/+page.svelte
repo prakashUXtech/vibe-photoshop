@@ -18,7 +18,7 @@
     StatusBar,
     ChatPanel,
     HistoryPanel,
-    AdjustmentsPanel,
+    SessionsPanel,
     PanelTabs,
     SettingsPanel,
     VersionThumbnailPanel
@@ -33,48 +33,107 @@
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
       imageStore.setUploading(true);
-      imageStore.setSelectedImage(input.files[0]);
-      
-      // Add message
-      chatStore.addMessage('Uploading image...', 'system');
       
       try {
         // Convert file to base64
         const base64Data = await fileToBase64(input.files[0]);
-        const previewUrl = $imageStore.previewUrl;
+        
+        // Create a data URL from the base64 data
+        const fileType = input.files[0].type || 'image/jpeg';
+        const dataUrl = `data:${fileType};base64,${base64Data}`;
+        
+        // Set the selected image with the preview URL
+        imageStore.setSelectedImage(input.files[0], dataUrl);
+        
+        // Create the image metadata
+        const img = new Image();
+        const dimensions = await new Promise<{width: number, height: number}>((resolve) => {
+          img.onload = () => {
+            resolve({
+              width: img.width,
+              height: img.height
+            });
+          };
+          img.src = dataUrl;
+        });
         
         // Create a mock image object
+        const timestamp = new Date();
+        const imageId = `upload-${timestamp.getTime()}`;
         const newImage: Image = {
-          id: `upload-${Date.now()}`,
+          id: imageId,
           userId: '1',
           prompt: 'Uploaded image',
-          imageUrl: previewUrl || '',
-          thumbnail: previewUrl || '',
+          imageUrl: dataUrl,
+          thumbnail: dataUrl,
           status: 'completed',
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: timestamp,
+          updatedAt: timestamp,
           metadata: {
-            width: 800,
-            height: 600,
-            format: 'jpeg',
-            size: 1024000
+            width: dimensions.width,
+            height: dimensions.height,
+            format: input.files[0].type.split('/')[1] || 'jpeg',
+            size: input.files[0].size
           },
           versions: [
             {
-              id: `v-${Date.now()}`,
-              imageId: `upload-${Date.now()}`,
+              id: `v-${timestamp.getTime()}`,
+              imageId,
               prompt: 'Original upload',
-              imageUrl: previewUrl || '',
-              createdAt: new Date()
+              imageUrl: dataUrl,
+              createdAt: timestamp
             }
           ]
         };
         
         imageStore.setCurrentImage(newImage);
-        chatStore.addMessage('Image uploaded successfully', 'system');
+        
+        // Use the current session or create a new one for this image
+        const fileName = input.files[0].name || 'Uploaded image';
+        const sessionName = `${fileName.split('.')[0]} - ${timestamp.toLocaleString()}`;
+        
+        // Only create a new session if we don't have an active one with messages
+        if (chatStore.messages.length <= 1) { // Only has welcome message or is empty
+          chatStore.createSession(sessionName, imageId);
+        } else {
+          // Find if there's already a session for this image
+          let existingSession = null;
+          for (const session of chatStore.sessions) {
+            if (session.imageId === imageId) {
+              existingSession = session;
+              break;
+            }
+          }
+          
+          if (existingSession) {
+            // If there's an existing session for this image, switch to it
+            chatStore.setActiveSession(existingSession.id);
+          } else {
+            // Otherwise, update the current active session to point to this image
+            const activeSessionId = $chatStore.activeSessionId;
+            if (activeSessionId) {
+              // Update the session to point to this image
+              chatStore.updateSessionImageId(activeSessionId, imageId);
+            }
+          }
+        }
+        
+        // Add a welcome message to the session
+        chatStore.addMessage({
+          type: 'system',
+          text: 'Image uploaded successfully. You can now edit the image using text prompts.',
+          timestamp: new Date()
+        });
+        
+        // Switch to the vibe tab for editing
+        uiStore.setActiveTab('vibe');
       } catch (error) {
         console.error('Error uploading image:', error);
-        chatStore.addMessage('Error uploading image. Please try again.', 'system');
+        chatStore.addMessage({
+          type: 'system',
+          text: 'Error uploading image. Please try again.',
+          timestamp: new Date()
+        });
       } finally {
         imageStore.setUploading(false);
       }
@@ -215,6 +274,35 @@
       // Update the image store
       imageStore.setCurrentImage(newImage);
       
+      // Use the current session or create a new one for this image
+      const sessionName = `Generated: ${userPrompt.substring(0, 30)}${userPrompt.length > 30 ? '...' : ''}`;
+      
+      // Only create a new session if we don't have an active one with messages
+      if (chatStore.messages.length <= 1) { // Only has welcome message or is empty
+        chatStore.createSession(sessionName, imageId);
+      } else {
+        // Find if there's already a session for this image
+        let existingSession = null;
+        for (const session of chatStore.sessions) {
+          if (session.imageId === imageId) {
+            existingSession = session;
+            break;
+          }
+        }
+        
+        if (existingSession) {
+          // If there's an existing session for this image, switch to it
+          chatStore.setActiveSession(existingSession.id);
+        } else {
+          // Otherwise, update the current active session to point to this image
+          const activeSessionId = $chatStore.activeSessionId;
+          if (activeSessionId) {
+            // Update the session to point to this image
+            chatStore.updateSessionImageId(activeSessionId, imageId);
+          }
+        }
+      }
+      
       chatStore.addMessage({
         type: 'system',
         text: 'Image generated successfully',
@@ -328,12 +416,23 @@
   function resetSession() {
     if (!browser) return;
     
+    // Reset the image store
     imageStore.reset();
+    
+    // Create a new chat session
+    const timestamp = new Date();
+    const sessionName = `New Session - ${timestamp.toLocaleString()}`;
+    chatStore.createSession(sessionName);
+    
+    // Add a welcome message
     chatStore.addMessage({
       type: 'system',
-      text: 'Started a new session',
+      text: 'Started a new session. Upload an image or enter a prompt to get started.',
       timestamp: new Date()
     });
+    
+    // Switch to the vibe tab
+    uiStore.setActiveTab('vibe');
   }
   
   // Download the current image
@@ -363,7 +462,10 @@
   onMount(async () => {
     mounted = true;
     
-    if ($chatStore.messages.length === 0) {
+    // Initialize chat store
+    chatStore.init();
+    
+    if (chatStore.messages.length === 0) {
       chatStore.addMessage({
         type: 'system',
         text: 'Welcome to Vibe Photoshop! Upload an image or enter a prompt to get started.',
@@ -478,7 +580,7 @@
     style="background-color: var(--ps-secondary); border-color: var(--ps-border);"
   >
     <!-- Panel tabs -->
-    <div class="border-b" style="border-color: var(--ps-border);">
+    <div>
       <PanelTabs activeTab={$uiStore.activeTab} setActiveTab={setActiveTab} />
     </div>
     
@@ -486,7 +588,6 @@
     <div class="flex-1 overflow-hidden">
       {#if $uiStore.activeTab === 'vibe'}
         <ChatPanel 
-          messages={$chatStore.messages}
           isGenerating={$imageStore.isGenerating}
           prompt={$chatStore.prompt}
           error={$chatStore.error}
@@ -496,8 +597,8 @@
         <HistoryPanel 
           currentImage={$imageStore.currentImage}
         />
-      {:else if $uiStore.activeTab === 'adjustments'}
-        <AdjustmentsPanel />
+      {:else if $uiStore.activeTab === 'sessions'}
+        <SessionsPanel />
       {:else if $uiStore.activeTab === 'settings'}
         <SettingsPanel />
       {/if}
