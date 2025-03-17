@@ -30,9 +30,23 @@
   export let processInput: (() => Promise<void>) | undefined = undefined;
   
   let inputElement: HTMLInputElement;
+  let chatContainer: HTMLDivElement;
   let currentStreamingMessage = '';
   let conversationHistory: any[] = [];
   let isEditingImage = false;
+  
+  // Scroll to bottom of chat
+  function scrollToBottom() {
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  }
+  
+  // Watch messages for changes and scroll
+  $: if (messages) {
+    // Use setTimeout to ensure DOM is updated
+    setTimeout(scrollToBottom, 100);
+  }
   
   // Handle form submission
   async function handleSubmit(event: Event) {
@@ -59,6 +73,7 @@
         timestamp: new Date()
       };
       chatStore.addMessage(userMessage);
+      scrollToBottom();
       
       // Clear input and save current prompt
       const currentPrompt = prompt;
@@ -352,6 +367,9 @@
 
   // Handle image selection from chat
   function handleImageClick(image: string, message: ChatMessage) {
+    // Check if this image is already in the versions
+    const imageUrl = `data:image/jpeg;base64,${image}`;
+    
     if (!$imageStore.currentImage) {
       // If no current image, create a new one
       const timestamp = new Date();
@@ -360,9 +378,9 @@
         id: imageId,
         userId: '1',
         prompt: message.text,
-        imageUrl: `data:image/jpeg;base64,${image}`,
-        thumbnail: `data:image/jpeg;base64,${image}`,
-        status: 'completed',
+        imageUrl: imageUrl,
+        thumbnail: imageUrl,
+        status: 'completed' as const,
         createdAt: timestamp,
         updatedAt: timestamp,
         metadata: {
@@ -376,23 +394,31 @@
             id: `v-${timestamp.getTime()}`,
             imageId,
             prompt: message.text,
-            imageUrl: `data:image/jpeg;base64,${image}`,
+            imageUrl: imageUrl,
             createdAt: timestamp
           }
         ]
       };
       imageStore.setCurrentImage(newImage);
     } else {
-      // Add as a new version to current image
-      const timestamp = new Date();
-      const newVersion = {
-        id: `v-${timestamp.getTime()}`,
-        imageId: $imageStore.currentImage.id,
-        prompt: message.text,
-        imageUrl: `data:image/jpeg;base64,${image}`,
-        createdAt: timestamp
-      };
-      imageStore.addVersion(newVersion);
+      // Check if this exact image URL already exists in versions to prevent duplicates
+      const existingVersion = $imageStore.currentImage.versions.find(v => v.imageUrl === imageUrl);
+      
+      if (existingVersion) {
+        // If the version already exists, just select it instead of creating a duplicate
+        imageStore.selectVersion(existingVersion);
+      } else {
+        // Only add as a new version if it doesn't already exist
+        const timestamp = new Date();
+        const newVersion = {
+          id: `v-${timestamp.getTime()}`,
+          imageId: $imageStore.currentImage.id,
+          prompt: message.text,
+          imageUrl: imageUrl,
+          createdAt: timestamp
+        };
+        imageStore.addVersion(newVersion);
+      }
     }
     
     // Update UI store
@@ -405,7 +431,10 @@
   <ModelSelector />
   
   <!-- Chat messages -->
-  <div class="flex-1 overflow-y-auto p-3 space-y-3">
+  <div 
+    class="flex-1 overflow-y-auto p-3 space-y-3" 
+    bind:this={chatContainer}
+  >
     {#each messages as message}
       <div class="flex {message.type === 'user' ? 'justify-end' : 'justify-start'}">
         <div 
@@ -442,9 +471,9 @@
     {/each}
   </div>
   
-  <!-- Input form -->
+  <!-- Input form with enhanced styling -->
   <div class="p-3 border-t" style="background-color: var(--ps-secondary); border-color: var(--ps-border);">
-    <form on:submit={handleSubmit} class="flex items-center">
+    <form on:submit={handleSubmit} class="flex items-center gap-2">
       <div class="flex-grow relative">
         <input
           type="text"
@@ -457,7 +486,7 @@
                 ? "Continue editing the image..." 
                 : "Describe how to edit the image..." 
               : "Ask a question or describe what you want..."}
-          class="w-full py-2 px-3 text-sm focus:outline-none focus:ring-1"
+          class="w-full py-2.5 px-4 text-sm focus:outline-none focus:ring-2 transition-all duration-200"
           style="
             background-color: var(--ps-panel);
             border: 1px solid var(--ps-border);
@@ -467,19 +496,28 @@
           disabled={isGenerating}
           on:keydown={handleKeydown}
         />
+        {#if isGenerating}
+          <div class="absolute right-3 top-1/2 -translate-y-1/2">
+            <div class="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+          </div>
+        {/if}
       </div>
       <button
         type="submit"
-        class="ml-2 p-2 rounded hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+        class="p-2.5 rounded flex items-center justify-center transition-all duration-200 hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed min-w-[40px]"
         style="
           background-color: var(--ps-accent);
           border-radius: var(--ps-border-radius);
         "
         disabled={isGenerating || !prompt.trim()}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
-        </svg>
+        {#if isGenerating}
+          <div class="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+        {:else}
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+          </svg>
+        {/if}
       </button>
     </form>
     
@@ -506,13 +544,20 @@
   /* Focus styles for input */
   input:focus {
     border-color: var(--ps-accent);
-    box-shadow: 0 0 0 1px var(--ps-accent);
+    box-shadow: 0 0 0 2px var(--ps-accent);
   }
   
   /* Disabled state */
   input:disabled {
-    opacity: 0.5;
+    opacity: 0.7;
     cursor: not-allowed;
+    background-color: var(--ps-secondary);
+  }
+  
+  /* Input hover state */
+  input:not(:disabled):hover {
+    border-color: var(--ps-accent);
+    background-color: color-mix(in srgb, var(--ps-panel) 95%, var(--ps-accent));
   }
   
   :global(.prose) {
