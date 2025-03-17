@@ -38,7 +38,7 @@
           <div class="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-700">
             {mockUser.name.split(' ').map(n => n[0]).join('')}
           </div>
-          <span class="hidden md:inline-block text-sm font-medium text-gray-700">{mockUser.name}</span>
+          <!-- <span class="hidden md:inline-block text-sm font-medium text-gray-700">{mockUser.name}</span> -->
         </div>
       </div>
     </div>

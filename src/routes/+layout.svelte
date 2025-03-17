@@ -148,7 +148,7 @@
 				>
 					{mockUser.firstName[0]}{mockUser.lastName[0]}
 				</div>
-				<span class="text-xs opacity-70">{mockUser.firstName} {mockUser.lastName}</span>
+				<!-- <span class="text-xs opacity-70">{mockUser.firstName} {mockUser.lastName}</span> -->
 			</div>
 		</div>
 	</header>
