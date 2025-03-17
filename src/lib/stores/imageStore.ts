@@ -59,6 +59,22 @@ export const imageStore = {
     });
   },
   
+  // Select an existing version
+  selectVersion: (version: ImageVersion) => {
+    imageState.update(state => {
+      if (!state.currentImage) return state;
+      
+      return {
+        ...state,
+        currentImage: {
+          ...state.currentImage,
+          imageUrl: version.imageUrl,
+          updatedAt: new Date()
+        }
+      };
+    });
+  },
+  
   // Add a new version to the current image
   addVersion: (version: ImageVersion) => {
     imageState.update(state => {

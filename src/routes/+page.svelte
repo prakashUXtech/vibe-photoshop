@@ -2,12 +2,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { imageStore } from '$lib/stores/imageStore';
+  import { imageStore, imageVersions } from '$lib/stores/imageStore';
   import { chatStore, type ChatMessage } from '$lib/stores/chatStore';
   import { uiStore } from '$lib/stores/uiStore';
   import * as userService from '$lib/services/api/user';
-  import { generateImage as apiGenerateImage, editImage as apiEditImage } from '$lib/services/api/gemini';
-  import type { Image } from '$lib/types';
+  import { generateImage as apiGenerateImage, editImage as apiEditImage, fileToBase64 } from '$lib/services/api/gemini';
+  import type { Image, ImageVersion } from '$lib/types';
   
   // Import components
   import {
@@ -20,7 +20,8 @@
     HistoryPanel,
     AdjustmentsPanel,
     PanelTabs,
-    SettingsPanel
+    SettingsPanel,
+    VersionThumbnailPanel
   } from '$lib/components/photoshop';
   
   let mounted = false;
@@ -296,14 +297,13 @@
       // Add version to current image in memory
       imageStore.addVersion(newVersion);
       
-      // Add any text response from the API
-      if (result.text.length > 0) {
-        chatStore.addMessage({
-          type: 'system',
-          text: result.text.join('\n'),
-          timestamp: new Date()
-        });
-      }
+      // Add the edited image to the chat
+      chatStore.addMessage({
+        type: 'assistant',
+        text: result.text.length > 0 ? result.text.join('\n') : 'Image edited successfully',
+        timestamp: new Date(),
+        images: [`${result.images[0]}`] // Add the edited image to the chat
+      });
       
       chatStore.addMessage({
         type: 'system',
@@ -328,7 +328,7 @@
   function resetSession() {
     if (!browser) return;
     
-    imageStore.resetSession();
+    imageStore.reset();
     chatStore.addMessage({
       type: 'system',
       text: 'Started a new session',
@@ -357,95 +357,6 @@
   // Set active tab
   function setActiveTab(tab: string) {
     uiStore.setActiveTab(tab);
-  }
-  
-  // Add a test function to directly call our server endpoint
-  async function testServerEndpoint() {
-    const apiKey = await userService.getUserApiKey();
-    if (!apiKey) {
-      alert('Please set your Gemini API key in Settings');
-      return;
-    }
-    
-    console.log('🧪 TEST: Directly calling server endpoint');
-    
-    try {
-      // Show a loading message
-      chatStore.addMessage({
-        type: 'system',
-        text: 'Testing image generation...',
-        timestamp: new Date()
-      });
-      
-      const response = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt: 'Generate a simple painting of grass with blue sky and a few white clouds',
-          apiKey
-        })
-      });
-      
-      console.log('🧪 TEST: Response status:', response.status);
-      
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('🧪 TEST: API error:', error);
-        chatStore.addMessage({
-          type: 'system',
-          text: `Error: ${error.message || 'Failed to generate image'}`,
-          timestamp: new Date()
-        });
-        return;
-      }
-      
-      const data = await response.json();
-      console.log('🧪 TEST: Response data:', {
-        textCount: data.text.length,
-        imageCount: data.images.length,
-        textSample: data.text.length > 0 ? data.text[0].substring(0, 50) + '...' : 'No text'
-      });
-      
-      // Create a message with the response
-      const message: ChatMessage = {
-        type: 'assistant',
-        text: data.text.length > 0 ? data.text.join('\n') : 'Image generated successfully',
-        timestamp: new Date(),
-        images: data.images.length > 0 ? [...data.images] : undefined
-      };
-      
-      // Add the message to the chat
-      chatStore.addMessage(message);
-      
-      // Display the generated image in the canvas
-      if (data.images.length > 0) {
-        // Create a new image object
-        const newImage = await saveGeneratedImage(
-          '1', // User ID
-          data.images[0],
-          'Generate a simple painting of grass with blue sky and a few white clouds',
-          data.text.join('\n')
-        );
-        
-        // Set as current image
-        imageStore.setCurrentImage(newImage);
-      } else {
-        chatStore.addMessage({
-          type: 'system',
-          text: 'No image was generated. Please try a different prompt.',
-          timestamp: new Date()
-        });
-      }
-    } catch (error) {
-      console.error('🧪 TEST: Error:', error);
-      chatStore.addMessage({
-        type: 'system',
-        text: `Error: ${error}`,
-        timestamp: new Date()
-      });
-    }
   }
   
   // Initialize with a welcome message and loading simulation
@@ -495,7 +406,7 @@
   </div>
   
   <!-- Main content area -->
-  <div class="flex-1 flex flex-col overflow-hidden bg-neutral-900">
+  <div class="flex-1 flex flex-col overflow-hidden">
     <!-- Main canvas area -->
     <div class="flex-1 overflow-hidden relative flex items-center justify-center">
       <div class="relative w-full h-full flex items-center justify-center">
@@ -530,6 +441,13 @@
           </div>
         {/if}
       </div>
+      
+      <!-- Add version thumbnail panel at the bottom of the canvas -->
+      {#if $imageStore.currentImage}
+        <div class="absolute bottom-0 left-0 right-0">
+          <VersionThumbnailPanel currentImage={$imageStore.currentImage} />
+        </div>
+      {/if}
       
       {#if $imageStore.isGenerating || $imageStore.isUploading}
         <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center">
@@ -577,7 +495,6 @@
       {:else if $uiStore.activeTab === 'history'}
         <HistoryPanel 
           currentImage={$imageStore.currentImage}
-          selectVersion={imageStore.selectVersion}
         />
       {:else if $uiStore.activeTab === 'adjustments'}
         <AdjustmentsPanel />
@@ -593,17 +510,6 @@
   <LoadingScreen loadingProgress={$uiStore.loadingProgress} loadingText={$uiStore.loadingText} />
 {/if}
 
-<!-- Add a test button in a visible location -->
-<div class="absolute top-2 right-2 z-50">
-  <button 
-    class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-    on:click={testServerEndpoint}
-  >
-    Test Server
-  </button>
-</div>
-{/if}
-
 <style>
   :global(.dark) {
     color-scheme: dark;
@@ -613,3 +519,4 @@
     display: none;
   }
 </style>
+{/if}

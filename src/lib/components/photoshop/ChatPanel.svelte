@@ -9,6 +9,7 @@
   import { onMount } from 'svelte';
   import { chatStore, type ChatMessage } from '$lib/stores/chatStore';
   import { uiStore } from '$lib/stores/uiStore';
+  import { imageStore } from '$lib/stores/imageStore';
   import { 
     generateContent, 
     editImage, 
@@ -348,6 +349,55 @@
     if (!prompt) prompt = $chatStore.prompt;
     if (!error) error = $chatStore.error;
   }
+
+  // Handle image selection from chat
+  function handleImageClick(image: string, message: ChatMessage) {
+    if (!$imageStore.currentImage) {
+      // If no current image, create a new one
+      const timestamp = new Date();
+      const imageId = `img-${timestamp.getTime()}`;
+      const newImage = {
+        id: imageId,
+        userId: '1',
+        prompt: message.text,
+        imageUrl: `data:image/jpeg;base64,${image}`,
+        thumbnail: `data:image/jpeg;base64,${image}`,
+        status: 'completed',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        metadata: {
+          width: 1024,
+          height: 1024,
+          format: 'jpeg',
+          size: image.length
+        },
+        versions: [
+          {
+            id: `v-${timestamp.getTime()}`,
+            imageId,
+            prompt: message.text,
+            imageUrl: `data:image/jpeg;base64,${image}`,
+            createdAt: timestamp
+          }
+        ]
+      };
+      imageStore.setCurrentImage(newImage);
+    } else {
+      // Add as a new version to current image
+      const timestamp = new Date();
+      const newVersion = {
+        id: `v-${timestamp.getTime()}`,
+        imageId: $imageStore.currentImage.id,
+        prompt: message.text,
+        imageUrl: `data:image/jpeg;base64,${image}`,
+        createdAt: timestamp
+      };
+      imageStore.addVersion(newVersion);
+    }
+    
+    // Update UI store
+    uiStore.setSelectedImage(image);
+  }
 </script>
 
 <div class="flex flex-col h-full" style="background-color: var(--ps-secondary);">
@@ -378,7 +428,7 @@
                   alt="Generated" 
                   class="max-w-full rounded cursor-pointer hover:opacity-90 transition-opacity"
                   style="border-radius: var(--ps-border-radius);"
-                  on:click={() => uiStore.setSelectedImage(image)}
+                  on:click={() => handleImageClick(image, message)}
                 />
               {/each}
             </div>

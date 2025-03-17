@@ -15,6 +15,7 @@ export interface UIState {
   selectedImage: string | null;
   selectedModel: string;
   isStreaming: boolean;
+  showImageBorder: boolean;
 }
 
 // Get initial theme from localStorage or default to system
@@ -49,8 +50,9 @@ const initialState: UIState = {
   loadingText: 'Initializing...',
   theme: getInitialTheme(),
   selectedImage: null,
-  selectedModel: 'gemini-2.0-flash-exp-image-generation',
-  isStreaming: false
+  selectedModel: 'gemini-pro-vision',
+  isStreaming: false,
+  showImageBorder: true // Default to showing border
 };
 
 // Create the store
@@ -78,6 +80,14 @@ if (browser) {
 // Create the UI store with actions
 export const uiStore = {
   subscribe,
+  
+  // Toggle image border
+  toggleImageBorder: () => {
+    update(state => ({
+      ...state,
+      showImageBorder: !state.showImageBorder
+    }));
+  },
   
   // Set active tab
   setActiveTab: (tab: string) => {

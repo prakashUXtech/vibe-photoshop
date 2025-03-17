@@ -1,10 +1,14 @@
 <!--
   ImageCanvas.svelte
   This component displays the current image and handles image uploads.
+  Updated with centered Polaroid-style frame and improved prompt display.
 -->
 <script lang="ts">
-  import type { Image } from '$lib/types';
+  import type { Image, ImageVersion } from '$lib/types';
   import { createEventDispatcher } from 'svelte';
+  import { imageStore } from '$lib/stores/imageStore';
+  import { uiStore } from '$lib/stores/uiStore';
+  import { toast } from '$lib/stores/toastStore';
   
   export let currentImage: Image | null = null;
   export let isUploading = false;
@@ -14,7 +18,15 @@
   const dispatch = createEventDispatcher();
   
   let dragOver = false;
+  let showPrompt = true;
   
+  // Copy prompt to clipboard
+  async function copyPrompt() {
+    if (!currentImage) return;
+    await navigator.clipboard.writeText(currentImage.prompt);
+    toast.success('Prompt copied to clipboard');
+  }
+
   function handleDragEnter(e: DragEvent) {
     e.preventDefault();
     dragOver = true;
@@ -52,32 +64,82 @@
       }
     }
   }
+
+  // Toggle border visibility
+  function toggleBorder() {
+    uiStore.toggleImageBorder();
+  }
+  
+  // Toggle prompt visibility
+  function togglePrompt() {
+    showPrompt = !showPrompt;
+  }
 </script>
 
 <div 
-  class="relative w-full h-full"
+  class="relative w-full h-full grid-background"
   on:dragenter={handleDragEnter}
   on:dragleave={handleDragLeave}
   on:dragover|preventDefault
   on:drop={handleDrop}
   on:paste={handlePaste}
 >
-  <!-- Canvas background -->
-  <div 
-    class="absolute inset-0 grid"
-    style="background-size: 16px 16px; background-image: linear-gradient(to right, #333333 1px, transparent 1px), linear-gradient(to bottom, #333333 1px, transparent 1px);"
-  >
-  </div>
-  
   <!-- Image display -->
   {#if currentImage}
     <div class="absolute inset-0 flex items-center justify-center">
-      <img
-        src={currentImage.imageUrl}
-        alt={currentImage.prompt}
-        class="max-w-full max-h-full object-contain"
-        style="image-rendering: pixelated;"
-      />
+      <div class="image-container {$uiStore.showImageBorder ? 'polaroid-border' : ''}">
+        <div class="relative image-wrapper">
+          <img
+            src={currentImage.imageUrl}
+            alt={currentImage.prompt}
+            class="image"
+          />
+          
+          <!-- Controls -->
+          <div class="control-buttons">
+            <!-- Border toggle button -->
+            <button
+              class="control-button"
+              on:click={toggleBorder}
+              title={$uiStore.showImageBorder ? "Hide Frame" : "Show Frame"}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M4 4h12v12H4V4z" fill="none" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+            
+            {#if $uiStore.showImageBorder}
+              <!-- Prompt toggle button -->
+              <button
+                class="control-button ml-2"
+                on:click={togglePrompt}
+                title={showPrompt ? "Hide Prompt" : "Show Prompt"}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            {/if}
+          </div>
+        </div>
+        
+        <!-- Prompt display -->
+        {#if $uiStore.showImageBorder && showPrompt && currentImage.prompt}
+          <div class="prompt-container">
+            <p class="prompt-text">{currentImage.prompt}</p>
+            <button 
+              class="copy-button" 
+              on:click={copyPrompt}
+              title="Copy prompt"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/>
+                <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/>
+              </svg>
+            </button>
+          </div>
+        {/if}
+      </div>
     </div>
   {/if}
   
@@ -110,7 +172,127 @@
   }
   
   /* Style the grid background */
-  .grid {
-    background-color: #1a1a1a;
+  .grid-background {
+    background-size: 16px 16px;
+    background-image: 
+      linear-gradient(to right, rgba(51, 51, 51, 0.2) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(51, 51, 51, 0.2) 1px, transparent 1px);
+  }
+
+  /* Image container */
+  .image-container {
+    max-width: 85%;
+    max-height: 85%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Polaroid-style border */
+  .polaroid-border {
+    background: white;
+    padding: 20px 20px 50px 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+  }
+
+  /* Dark mode support */
+  :global(.dark) .polaroid-border {
+    background: white;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Image wrapper */
+  .image-wrapper {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* Image styling */
+  .image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  /* Controls positioning */
+  .control-buttons {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    opacity: 1;
+    z-index: 10;
+  }
+
+  .image-wrapper:hover .control-buttons {
+    opacity: 1;
+  }
+
+  /* Button styling */
+  .control-button {
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 9999px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .control-button:hover {
+    background: rgba(0, 0, 0, 0.8);
+  }
+
+  .ml-2 {
+    margin-left: 8px;
+  }
+
+  /* Prompt container */
+  .prompt-container {
+    width: 100%;
+    margin-top: 15px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .prompt-text {
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    color: #333;
+    line-height: 1.4;
+    margin: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .copy-button {
+    padding: 6px;
+    color: #666;
+    border-radius: 4px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .copy-button:hover {
+    background: #f0f0f0;
+    color: #333;
   }
 </style> 
