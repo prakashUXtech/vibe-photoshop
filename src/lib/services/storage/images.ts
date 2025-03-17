@@ -2,11 +2,12 @@
  * Image Storage Service
  * 
  * This service provides functions for storing and retrieving images.
- * Currently using local storage for demo purposes.
+ * Updated to include storage quota management and image compression.
  */
 
 import { browser } from '$app/environment';
 import type { Image } from '$lib/types';
+import { hasEnoughStorage, compressImage, cleanupOldVersions, getDataSize } from './storageManager';
 
 // Storage prefix for local storage
 const STORAGE_PREFIX = 'vibe_photoshop_';
@@ -28,40 +29,67 @@ export async function saveGeneratedImage(
 ): Promise<Image> {
   if (!browser) throw new Error('Cannot save image in server context');
   
-  const timestamp = new Date();
-  const imageId = `img-${timestamp.getTime()}`;
-  
-  // Create image object
-  const newImage: Image = {
-    id: imageId,
-    userId,
-    prompt,
-    imageUrl: base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`,
-    thumbnail: base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`,
-    status: 'completed',
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    metadata: {
-      width: 1024,
-      height: 1024,
-      format: 'jpeg',
-      size: base64Image.length
-    },
-    versions: [
-      {
-        id: `v-${timestamp.getTime()}`,
-        imageId,
-        prompt,
-        imageUrl: base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`,
-        createdAt: timestamp
+  try {
+    // Compress the image before saving
+    const compressedImage = await compressImage(base64Image);
+    
+    const timestamp = new Date();
+    const imageId = `img-${timestamp.getTime()}`;
+    
+    // Create image object
+    const newImage: Image = {
+      id: imageId,
+      userId,
+      prompt,
+      imageUrl: `data:image/jpeg;base64,${compressedImage}`,
+      thumbnail: `data:image/jpeg;base64,${compressedImage}`,
+      status: 'completed',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      metadata: {
+        width: 1024,
+        height: 1024,
+        format: 'jpeg',
+        size: getDataSize(compressedImage)
+      },
+      versions: [
+        {
+          id: `v-${timestamp.getTime()}`,
+          imageId,
+          prompt,
+          imageUrl: `data:image/jpeg;base64,${compressedImage}`,
+          createdAt: timestamp
+        }
+      ]
+    };
+    
+    // Check if we have enough storage space
+    const imageJson = JSON.stringify(newImage);
+    const dataSize = getDataSize(imageJson);
+    
+    if (!hasEnoughStorage(dataSize)) {
+      // Try to clean up old versions first
+      await cleanupOldVersions(imageId);
+      
+      // Check again after cleanup
+      if (!hasEnoughStorage(dataSize)) {
+        throw new Error('Storage quota exceeded. Please delete some images to free up space.');
       }
-    ]
-  };
-  
-  // Save to local storage
-  saveImageToStorage(newImage);
-  
-  return newImage;
+    }
+    
+    // Save to local storage
+    try {
+      localStorage.setItem(`${STORAGE_PREFIX}image_${imageId}`, imageJson);
+    } catch (error) {
+      console.error('Error saving image to local storage:', error);
+      throw new Error('Failed to save image. Storage quota may be exceeded.');
+    }
+    
+    return newImage;
+  } catch (error) {
+    console.error('Error in saveGeneratedImage:', error);
+    throw error;
+  }
 }
 
 /**
@@ -70,42 +98,71 @@ export async function saveGeneratedImage(
  * @param imageId Image ID
  * @param base64Image Base64 encoded image data
  * @param prompt User prompt that generated the image
- * @returns The updated image object or null if image not found
+ * @param responseText Optional response text from the API
+ * @returns Promise that resolves to the new version object
  */
-export function addImageVersion(
+export async function addImageVersion(
   imageId: string,
   base64Image: string,
-  prompt: string
-): Image | null {
+  prompt: string,
+  responseText?: string
+): Promise<Image | null> {
   if (!browser) return null;
   
-  // Get the image from storage
-  const image = getImageFromStorage(imageId);
-  if (!image) return null;
-  
-  const timestamp = new Date();
-  
-  // Create new version
-  const newVersion = {
-    id: `v-${timestamp.getTime()}`,
-    imageId,
-    prompt,
-    imageUrl: base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`,
-    createdAt: timestamp
-  };
-  
-  // Update image
-  const updatedImage: Image = {
-    ...image,
-    imageUrl: newVersion.imageUrl,
-    updatedAt: timestamp,
-    versions: [...image.versions, newVersion]
-  };
-  
-  // Save to local storage
-  saveImageToStorage(updatedImage);
-  
-  return updatedImage;
+  try {
+    // Get the image from storage
+    const image = getImageFromStorage(imageId);
+    if (!image) return null;
+    
+    // Compress the new version
+    const compressedImage = await compressImage(base64Image);
+    
+    const timestamp = new Date();
+    
+    // Create new version
+    const newVersion = {
+      id: `v-${timestamp.getTime()}`,
+      imageId,
+      prompt,
+      imageUrl: `data:image/jpeg;base64,${compressedImage}`,
+      createdAt: timestamp
+    };
+    
+    // Update image
+    const updatedImage: Image = {
+      ...image,
+      imageUrl: newVersion.imageUrl,
+      updatedAt: timestamp,
+      versions: [...image.versions, newVersion]
+    };
+    
+    // Check storage space
+    const imageJson = JSON.stringify(updatedImage);
+    const dataSize = getDataSize(imageJson);
+    
+    if (!hasEnoughStorage(dataSize)) {
+      // Try to clean up old versions first
+      await cleanupOldVersions(imageId);
+      
+      // Check again after cleanup
+      if (!hasEnoughStorage(dataSize)) {
+        throw new Error('Storage quota exceeded. Please delete some images to free up space.');
+      }
+    }
+    
+    // Save to local storage
+    try {
+      localStorage.setItem(`${STORAGE_PREFIX}image_${imageId}`, imageJson);
+    } catch (error) {
+      console.error('Error saving image version to local storage:', error);
+      throw new Error('Failed to save image version. Storage quota may be exceeded.');
+    }
+    
+    return updatedImage;
+  } catch (error) {
+    console.error('Error in addImageVersion:', error);
+    throw error;
+  }
 }
 
 /**

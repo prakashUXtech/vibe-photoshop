@@ -190,21 +190,54 @@
         throw new Error('No image was generated. Please try a different prompt.');
       }
       
-      // Save the generated image
-      const newImage = await saveGeneratedImage(
-        '1', // User ID
-        result.images[0],
-        userPrompt,
-        result.text.join('\n')
-      );
-      
-      imageStore.setCurrentImage(newImage);
-      
-      chatStore.addMessage({
-        type: 'system',
-        text: 'Image generated successfully',
-        timestamp: new Date()
-      });
+      try {
+        // Save the generated image
+        const newImage = await saveGeneratedImage(
+          '1', // User ID
+          result.images[0],
+          userPrompt,
+          result.text.join('\n')
+        );
+        
+        imageStore.setCurrentImage(newImage);
+        
+        chatStore.addMessage({
+          type: 'system',
+          text: 'Image generated and saved successfully',
+          timestamp: new Date()
+        });
+      } catch (storageError) {
+        // Handle storage quota error gracefully
+        console.error('Storage error:', storageError);
+        
+        if (storageError.message.includes('quota exceeded')) {
+          chatStore.addMessage({
+            type: 'system',
+            text: 'Warning: Could not save the image due to storage space limitations. Please delete some old images to free up space.',
+            timestamp: new Date()
+          });
+          
+          // Still show the generated image even if we couldn't save it
+          imageStore.setCurrentImage({
+            id: `temp-${Date.now()}`,
+            userId: '1',
+            prompt: userPrompt,
+            imageUrl: `data:image/jpeg;base64,${result.images[0]}`,
+            status: 'completed',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            metadata: {
+              width: 1024,
+              height: 1024,
+              format: 'jpeg',
+              size: result.images[0].length
+            },
+            versions: []
+          });
+        } else {
+          throw storageError; // Re-throw other storage errors
+        }
+      }
     } catch (err) {
       const error = err as Error;
       chatStore.setError(error.message || 'Failed to generate image');
