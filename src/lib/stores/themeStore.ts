@@ -11,8 +11,11 @@ interface ThemeConfig {
   text: string;
   border: string;
   panel: string;
+  panelBg?: string;
   button: string;
+  buttonBg?: string;
   buttonHover: string;
+  inputBg?: string;
   fontFamily: string;
   borderRadius: string;
   shadow: string;
@@ -30,8 +33,11 @@ const themeConfigs: ThemeConfigs = {
     text: '#E0E0E0',
     border: '#3A3A3A',
     panel: '#252525',
+    panelBg: '#252525',
     button: '#363636',
+    buttonBg: '#363636',
     buttonHover: '#404040',
+    inputBg: '#1E1E1E',
     fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     borderRadius: '4px',
     shadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
@@ -43,8 +49,11 @@ const themeConfigs: ThemeConfigs = {
     text: '#E6E6E6',
     border: '#383838',
     panel: '#232323',
+    panelBg: '#232323',
     button: '#333333',
+    buttonBg: '#333333',
     buttonHover: '#3D3D3D',
+    inputBg: '#1C1C1C',
     fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     borderRadius: '4px',
     shadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
@@ -56,8 +65,11 @@ const themeConfigs: ThemeConfigs = {
     text: '#E6E6E6',
     border: '#3F3F3F',
     panel: '#262626',
+    panelBg: '#262626',
     button: '#383838',
+    buttonBg: '#383838',
     buttonHover: '#424242',
+    inputBg: '#212121',
     fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     borderRadius: '4px',
     shadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
@@ -69,8 +81,11 @@ const themeConfigs: ThemeConfigs = {
     text: '#CCCCCC',
     border: '#444444',
     panel: '#282828',
+    panelBg: '#282828',
     button: '#3A3A3A',
+    buttonBg: '#3A3A3A',
     buttonHover: '#454545',
+    inputBg: '#222222',
     fontFamily: "'Lucida Grande', 'Segoe UI', sans-serif",
     borderRadius: '3px',
     shadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
@@ -82,8 +97,11 @@ const themeConfigs: ThemeConfigs = {
     text: '#DDDDDD',
     border: '#555555',
     panel: '#3D3D3D',
+    panelBg: '#3D3D3D',
     button: '#4F4F4F',
+    buttonBg: '#4F4F4F',
     buttonHover: '#5A5A5A',
+    inputBg: '#333333',
     fontFamily: "'Lucida Grande', 'Tahoma', sans-serif",
     borderRadius: '2px',
     shadow: '0 2px 3px rgba(0, 0, 0, 0.3)'
@@ -95,8 +113,11 @@ const themeConfigs: ThemeConfigs = {
     text: '#EEEEEE',
     border: '#777777',
     panel: '#5A5A5A',
+    panelBg: '#5A5A5A',
     button: '#6E6E6E',
+    buttonBg: '#6E6E6E',
     buttonHover: '#7A7A7A',
+    inputBg: '#535353',
     fontFamily: "'Tahoma', 'Arial', sans-serif",
     borderRadius: '0px',
     shadow: '2px 2px 0 rgba(0, 0, 0, 0.4)'

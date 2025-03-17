@@ -35,4 +35,14 @@
   >
     Adjustments
   </button>
+  <button 
+    class="px-4 py-2 text-xs font-medium border-b-2 transition-colors"
+    style="
+      border-color: {activeTab === 'settings' ? 'var(--ps-accent)' : 'transparent'};
+      color: {activeTab === 'settings' ? 'var(--ps-accent)' : 'var(--ps-text)'};
+    "
+    on:click={() => setActiveTab('settings')}
+  >
+    Settings
+  </button>
 </div> 

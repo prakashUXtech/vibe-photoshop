@@ -6,6 +6,19 @@
   import { imageStore, chatStore, uiStore } from '$lib/stores';
   import type { Image, ImageVersion } from '$lib/types';
   
+  // Import services
+  import { 
+    generateImage as apiGenerateImage, 
+    editImage as apiEditImage,
+    fileToBase64,
+    userService
+  } from '$lib/services';
+  
+  import { 
+    saveGeneratedImage, 
+    addImageVersion 
+  } from '$lib/services';
+  
   // Import components
   import {
     LoadingScreen,
@@ -16,11 +29,16 @@
     ChatPanel,
     HistoryPanel,
     AdjustmentsPanel,
-    PanelTabs
+    PanelTabs,
+    SettingsPanel
   } from '$lib/components/photoshop';
   
+  let mounted = false;
+  
   // Handle file upload
-  function handleFileSelect(event: Event) {
+  async function handleFileSelect(event: Event) {
+    if (!browser) return;
+    
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
       imageStore.setUploading(true);
@@ -29,11 +47,10 @@
       // Add message
       chatStore.addMessage('Uploading image...', 'system');
       
-      // Simulate upload delay
-      setTimeout(() => {
+      try {
+        // Convert file to base64
+        const base64Data = await fileToBase64(input.files[0]);
         const previewUrl = $imageStore.previewUrl;
-        
-        imageStore.setUploading(false);
         
         // Create a mock image object
         const newImage: Image = {
@@ -64,14 +81,30 @@
         
         imageStore.setCurrentImage(newImage);
         chatStore.addMessage('Image uploaded successfully', 'system');
-      }, 1500);
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        chatStore.addMessage('Error uploading image. Please try again.', 'system');
+      } finally {
+        imageStore.setUploading(false);
+      }
     }
   }
   
   // Process user input
   async function processInput() {
+    if (!browser) return;
+    
     if (!$chatStore.prompt.trim()) {
       chatStore.setError('Please enter a prompt');
+      return;
+    }
+    
+    // Check if API key is set
+    const apiKey = await userService.getUserApiKey();
+    if (!apiKey) {
+      chatStore.setError('Please set your Gemini API key in Settings');
+      chatStore.addMessage('Please set your Gemini API key in Settings to generate images.', 'system');
+      uiStore.setActiveTab('settings');
       return;
     }
     
@@ -93,45 +126,39 @@
   
   // Generate new image
   async function generateImage(userPrompt: string) {
+    if (!browser) return;
+    
     imageStore.setGenerating(true);
     chatStore.addMessage('Generating image from prompt...', 'system');
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Call the Gemini API
+      const result = await apiGenerateImage(userPrompt);
       
-      // Create a mock generated image
-      const newImage: Image = {
-        id: `gen-${Date.now()}`,
-        userId: '1',
-        prompt: userPrompt,
-        imageUrl: `https://picsum.photos/800/600?random=${Math.floor(Math.random() * 1000)}`,
-        thumbnail: `https://picsum.photos/400/300?random=${Math.floor(Math.random() * 1000)}`,
-        status: 'completed',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        metadata: {
-          width: 800,
-          height: 600,
-          format: 'jpeg',
-          size: 1024000
-        },
-        versions: [
-          {
-            id: `v-${Date.now()}`,
-            imageId: `gen-${Date.now()}`,
-            prompt: userPrompt,
-            imageUrl: `https://picsum.photos/800/600?random=${Math.floor(Math.random() * 1000)}`,
-            createdAt: new Date()
-          }
-        ]
-      };
+      if (result.images.length === 0) {
+        throw new Error('No image was generated. Please try a different prompt.');
+      }
+      
+      // Save the generated image
+      const newImage = await saveGeneratedImage(
+        '1', // User ID
+        result.images[0],
+        userPrompt,
+        result.text.join('\n')
+      );
       
       imageStore.setCurrentImage(newImage);
+      
+      // Add any text response from the API
+      if (result.text.length > 0) {
+        chatStore.addMessage(result.text.join('\n'), 'system');
+      }
+      
       chatStore.addMessage('Image generated successfully', 'system');
     } catch (err) {
-      chatStore.setError('Failed to generate image');
-      chatStore.addMessage('Failed to generate image. Please try again.', 'system');
+      const error = err as Error;
+      chatStore.setError(error.message || 'Failed to generate image');
+      chatStore.addMessage(error.message || 'Failed to generate image. Please try again.', 'system');
       console.error(err);
     } finally {
       imageStore.setGenerating(false);
@@ -140,34 +167,60 @@
   
   // Generate a new version of the image
   async function generateNewVersion(userPrompt: string) {
-    if (!$imageStore.currentImage) return;
+    if (!browser || !$imageStore.currentImage) return;
     
     imageStore.setGenerating(true);
     chatStore.addMessage('Generating new version of the image...', 'system');
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      // Get the current image
       const currentImage = $imageStore.currentImage;
       
-      // Create a new version
-      const newVersion: ImageVersion = {
-        id: `v-${Date.now()}`,
-        imageId: currentImage.id,
-        prompt: userPrompt,
-        imageUrl: `https://picsum.photos/800/600?random=${Math.floor(Math.random() * 1000)}`,
-        createdAt: new Date(),
-        parentVersionId: currentImage.versions[currentImage.versions.length - 1].id
-      };
+      // Extract base64 data from image URL
+      // This is a simplification - in a real app, you'd need to handle different URL formats
+      let base64Data = '';
+      if (currentImage.imageUrl.startsWith('data:')) {
+        base64Data = currentImage.imageUrl.split(',')[1];
+      } else {
+        // For demo purposes with picsum photos, we'll generate a new random image
+        // In a real app, you'd need to fetch the image and convert it to base64
+        const result = await apiGenerateImage(userPrompt);
+        
+        if (result.images.length === 0) {
+          throw new Error('No image was generated. Please try a different prompt.');
+        }
+        
+        base64Data = result.images[0];
+      }
+      
+      // Call the Gemini API to edit the image
+      const result = await apiEditImage(base64Data, userPrompt);
+      
+      if (result.images.length === 0) {
+        throw new Error('No image was generated. Please try a different prompt.');
+      }
       
       // Add the new version to the current image
-      imageStore.addVersion(newVersion);
+      const updatedImage = addImageVersion(
+        currentImage.id,
+        result.images[0],
+        userPrompt
+      );
+      
+      if (updatedImage) {
+        imageStore.setCurrentImage(updatedImage);
+      }
+      
+      // Add any text response from the API
+      if (result.text.length > 0) {
+        chatStore.addMessage(result.text.join('\n'), 'system');
+      }
       
       chatStore.addMessage('New version generated successfully', 'system');
     } catch (err) {
-      chatStore.setError('Failed to generate new version');
-      chatStore.addMessage('Failed to generate new version. Please try again.', 'system');
+      const error = err as Error;
+      chatStore.setError(error.message || 'Failed to generate new version');
+      chatStore.addMessage(error.message || 'Failed to generate new version. Please try again.', 'system');
       console.error(err);
     } finally {
       imageStore.setGenerating(false);
@@ -176,22 +229,24 @@
   
   // Reset the current session
   function resetSession() {
+    if (!browser) return;
+    
     imageStore.resetSession();
     chatStore.addMessage('Started a new session', 'system');
   }
   
   // Download the current image
   function downloadImage() {
-    if ($imageStore.currentImage && browser) {
-      const link = document.createElement('a');
-      link.href = $imageStore.currentImage.imageUrl;
-      link.download = `vibe-photoshop-${$imageStore.currentImage.id}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      chatStore.addMessage('Image downloaded', 'system');
-    }
+    if (!browser || !$imageStore.currentImage) return;
+    
+    const link = document.createElement('a');
+    link.href = $imageStore.currentImage.imageUrl;
+    link.download = `vibe-photoshop-${$imageStore.currentImage.id}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    chatStore.addMessage('Image downloaded', 'system');
   }
   
   // Set active tab
@@ -200,9 +255,21 @@
   }
   
   // Initialize with a welcome message and loading simulation
-  onMount(() => {
+  onMount(async () => {
+    mounted = true;
+    
     if ($chatStore.messages.length === 0) {
       chatStore.addMessage('Welcome to Vibe Photoshop! Upload an image or enter a prompt to get started.', 'system');
+      
+      // Check if API key is set
+      const apiKey = await userService.getUserApiKey();
+      if (!apiKey) {
+        chatStore.addMessage('Please set your Gemini API key in Settings to generate images.', 'system');
+        // We'll wait a bit before switching to settings to let the user see the welcome message
+        setTimeout(() => {
+          uiStore.setActiveTab('settings');
+        }, 2000);
+      }
     }
     
     // Start loading simulation
@@ -210,88 +277,122 @@
   });
 </script>
 
-{#if $uiStore.isLoading}
-  <LoadingScreen loadingProgress={$uiStore.loadingProgress} loadingText={$uiStore.loadingText} />
-{:else}
-  <!-- Photoshop-inspired UI with theme variables -->
-  <div class="h-full flex flex-col" style="background-color: var(--ps-primary); color: var(--ps-text);">
-    <!-- Main content area -->
-    <main class="flex flex-col md:flex-row flex-1 overflow-hidden">
-      <!-- Left side: Image display (main canvas) -->
-      <div class="w-full md:w-2/3 flex flex-col h-full overflow-hidden">
-        <!-- Tool options bar -->
-        <ToolBar 
-          currentImage={$imageStore.currentImage} 
-          resetSession={resetSession} 
-          downloadImage={downloadImage} 
+{#if browser && mounted}
+<!-- Main application layout -->
+<div class="flex h-full">
+  <!-- Left sidebar with tools -->
+  <div 
+    class="w-16 border-r flex flex-col"
+    style="background-color: var(--ps-secondary); border-color: var(--ps-border);"
+  >
+    <ToolBar 
+      currentImage={$imageStore.currentImage} 
+      resetSession={resetSession} 
+      downloadImage={downloadImage} 
+    />
+  </div>
+  
+  <!-- Main content area -->
+  <div class="flex-1 flex flex-col overflow-hidden bg-neutral-900">
+    <!-- Main canvas area -->
+    <div class="flex-1 overflow-hidden relative flex items-center justify-center">
+      <div class="relative w-full h-full flex items-center justify-center">
+        <ImageCanvas 
+          currentImage={$imageStore.currentImage}
+          isUploading={$imageStore.isUploading}
+          isGenerating={$imageStore.isGenerating}
+          handleFileSelect={handleFileSelect}
         />
         
-        <!-- Canvas area -->
-        <div class="flex-1 p-4 flex flex-col overflow-auto" style="background-color: var(--ps-primary);">
-          <ImageCanvas 
-            currentImage={$imageStore.currentImage}
-            isUploading={$imageStore.isUploading}
-            isGenerating={$imageStore.isGenerating}
-            handleFileSelect={handleFileSelect}
-          />
-          
-          <!-- Version history under the main image -->
-          {#if $imageStore.currentImage && $imageStore.showVersionHistory}
-            <VersionHistory 
-              currentImage={$imageStore.currentImage}
-              showVersionHistory={$imageStore.showVersionHistory}
-              toggleVersionHistory={imageStore.toggleVersionHistory}
-              selectVersion={imageStore.selectVersion}
-            />
-          {/if}
-        </div>
-        
-        <!-- Status bar -->
-        <StatusBar currentImage={$imageStore.currentImage} />
+        {#if !$imageStore.currentImage && !$imageStore.isGenerating && !$imageStore.isUploading}
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
+            <div class="mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-medium text-gray-300 mb-2">No image selected</h3>
+            <p class="text-gray-400 mb-6">Upload an image or enter a prompt to get started.</p>
+            <button
+              class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              style="border-radius: var(--ps-border-radius);"
+              on:click={() => document.querySelector('input[type="file"]')?.click()}
+            >
+              Upload Image
+            </button>
+          </div>
+        {/if}
       </div>
       
-      <!-- Right side: Panels -->
-      <div class="w-full md:w-1/3 border-l flex flex-col h-full overflow-hidden" style="border-color: var(--ps-border);">
-        <!-- Panel tabs - Photoshop style -->
-        <PanelTabs activeTab={$uiStore.activeTab} setActiveTab={setActiveTab} />
-        
-        <!-- Panel content -->
-        <div class="flex-1 overflow-hidden flex flex-col h-full" style="background-color: var(--ps-secondary);">
-          {#if $uiStore.activeTab === 'vibe'}
-            <!-- Vibe Create panel (chat) -->
-            <ChatPanel 
-              messages={$chatStore.messages}
-              isGenerating={$imageStore.isGenerating}
-              prompt={$chatStore.prompt}
-              error={$chatStore.error}
-              processInput={processInput}
-            />
-          {:else if $uiStore.activeTab === 'history'}
-            <!-- History panel -->
-            <HistoryPanel 
-              currentImage={$imageStore.currentImage}
-              selectVersion={imageStore.selectVersion}
-            />
-          {:else if $uiStore.activeTab === 'adjustments'}
-            <!-- Adjustments panel -->
-            <AdjustmentsPanel />
-          {/if}
+      {#if $imageStore.isGenerating || $imageStore.isUploading}
+        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center">
+          <div class="text-white text-center">
+            <div class="mb-4">
+              <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+            </div>
+            <div class="text-lg font-medium">
+              {$imageStore.isGenerating ? 'Generating image...' : 'Uploading image...'}
+            </div>
+          </div>
         </div>
-      </div>
-    </main>
+      {/if}
+    </div>
+    
+    <!-- Status bar -->
+    <div 
+      class="h-6 border-t flex items-center px-4 text-xs"
+      style="background-color: var(--ps-secondary); border-color: var(--ps-border);"
+    >
+      <StatusBar currentImage={$imageStore.currentImage} />
+    </div>
   </div>
+  
+  <!-- Right panel with tabs -->
+  <div 
+    class="w-[26rem] border-l flex flex-col"
+    style="background-color: var(--ps-secondary); border-color: var(--ps-border);"
+  >
+    <!-- Panel tabs -->
+    <div class="border-b" style="border-color: var(--ps-border);">
+      <PanelTabs activeTab={$uiStore.activeTab} setActiveTab={setActiveTab} />
+    </div>
+    
+    <!-- Panel content -->
+    <div class="flex-1 overflow-hidden">
+      {#if $uiStore.activeTab === 'vibe'}
+        <ChatPanel 
+          messages={$chatStore.messages}
+          isGenerating={$imageStore.isGenerating}
+          prompt={$chatStore.prompt}
+          error={$chatStore.error}
+          {processInput}
+        />
+      {:else if $uiStore.activeTab === 'history'}
+        <HistoryPanel 
+          currentImage={$imageStore.currentImage}
+          selectVersion={imageStore.selectVersion}
+        />
+      {:else if $uiStore.activeTab === 'adjustments'}
+        <AdjustmentsPanel />
+      {:else if $uiStore.activeTab === 'settings'}
+        <SettingsPanel />
+      {/if}
+    </div>
+  </div>
+</div>
+
+<!-- Loading screen -->
+{#if $uiStore.isLoading}
+  <LoadingScreen loadingProgress={$uiStore.loadingProgress} loadingText={$uiStore.loadingText} />
+{/if}
 {/if}
 
 <style>
-  /* Global styles that might be needed */
-  :global(.bg-checkerboard) {
-    background-image: 
-      linear-gradient(45deg, var(--ps-panel) 25%, transparent 25%), 
-      linear-gradient(-45deg, var(--ps-panel) 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, var(--ps-panel) 75%),
-      linear-gradient(-45deg, transparent 75%, var(--ps-panel) 75%);
-    background-size: 20px 20px;
-    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-    background-color: var(--ps-secondary);
+  :global(.dark) {
+    color-scheme: dark;
+  }
+  
+  :global(input[type="file"]) {
+    display: none;
   }
 </style>
