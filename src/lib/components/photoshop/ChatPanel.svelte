@@ -441,6 +441,23 @@
     // Update UI store
     uiStore.setSelectedImage(image);
   }
+
+  // Handle image download
+  function downloadImage(image: string, message: ChatMessage) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const promptSnippet = message.text.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '-');
+    const filename = `vibe-photoshop-${promptSnippet}-${timestamp}.jpg`;
+    
+    const link = document.createElement('a');
+    link.href = `data:image/jpeg;base64,${image}`;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Show toast notification
+    toast.success('Image downloaded successfully');
+  }
 </script>
 
 <div class="flex flex-col h-full" style="background-color: var(--ps-secondary);">
@@ -469,13 +486,25 @@
           {#if message.images && message.images.length > 0}
             <div class="mt-2 space-y-2">
               {#each message.images as image}
-                <img 
-                  src="data:image/jpeg;base64,{image}" 
-                  alt="Generated" 
-                  class="max-w-full rounded cursor-pointer hover:opacity-90 transition-opacity"
-                  style="border-radius: var(--ps-border-radius);"
-                  on:click={() => handleImageClick(image, message)}
-                />
+                <div class="relative group">
+                  <img 
+                    src="data:image/jpeg;base64,{image}" 
+                    alt="Generated" 
+                    class="max-w-full rounded cursor-pointer hover:opacity-90 transition-opacity"
+                    style="border-radius: var(--ps-border-radius);"
+                    on:click={() => handleImageClick(image, message)}
+                  />
+                  <button
+                    class="absolute top-2 right-2 p-2 rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-all duration-200"
+                    style="border-radius: var(--ps-border-radius);"
+                    on:click|stopPropagation={() => downloadImage(image, message)}
+                    title="Download image"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
               {/each}
             </div>
           {/if}
