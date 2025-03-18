@@ -487,8 +487,19 @@
       }
     }
     
-    // Start loading simulation
-    uiStore.simulateLoading();
+    // Check if this is first launch in this session
+    const hasLoadedBefore = sessionStorage.getItem('app_loaded');
+    
+    if (!hasLoadedBefore) {
+      // Mark that the app has been loaded in this session
+      sessionStorage.setItem('app_loaded', 'true');
+      
+      // Only simulate loading on first launch of the session
+      uiStore.simulateLoading();
+    } else {
+      // Skip loading animation if app has been loaded before
+      uiStore.skipLoading();
+    }
   });
 </script>
 

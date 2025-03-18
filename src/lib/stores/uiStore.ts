@@ -189,5 +189,15 @@ export const uiStore = {
         };
       });
     }, 100);
+  },
+  
+  // Skip loading screen
+  skipLoading: () => {
+    update(state => ({
+      ...state,
+      isLoading: false,
+      loadingProgress: 0,
+      loadingText: ''
+    }));
   }
 }; 
