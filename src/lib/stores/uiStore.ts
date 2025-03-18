@@ -52,7 +52,7 @@ const initialState: UIState = {
   selectedImage: null,
   selectedModel: 'gemini-pro-vision',
   isStreaming: false,
-  showImageBorder: true // Default to showing border
+  showImageBorder: false // Default to not showing border
 };
 
 // Create the store

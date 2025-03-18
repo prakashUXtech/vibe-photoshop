@@ -19,7 +19,39 @@
   
   let dragOver = false;
   let showPrompt = true;
+  let scanPosition = 0;
+  let scanAnimation: number;
   
+  // Start scan animation
+  function startScanAnimation() {
+    let direction = 1;
+    scanPosition = 0;
+    
+    scanAnimation = window.setInterval(() => {
+      scanPosition += direction * 2;
+      if (scanPosition >= 100) {
+        direction = -1;
+      } else if (scanPosition <= 0) {
+        direction = 1;
+      }
+    }, 20);
+  }
+  
+  // Stop scan animation
+  function stopScanAnimation() {
+    if (scanAnimation) {
+      clearInterval(scanAnimation);
+      scanPosition = 0;
+    }
+  }
+  
+  // Watch isGenerating changes
+  $: if (isGenerating) {
+    startScanAnimation();
+  } else {
+    stopScanAnimation();
+  }
+
   // Copy prompt to clipboard
   async function copyPrompt() {
     if (!currentImage) return;
@@ -103,15 +135,34 @@
   on:paste={handlePaste}
 >
   <!-- Image display -->
-  {#if currentImage}
+  {#if currentImage || isGenerating}
     <div class="absolute inset-0 flex items-center justify-center">
       <div class="image-container {$uiStore.showImageBorder ? 'polaroid-border' : ''}">
         <div class="relative image-wrapper">
-          <img
-            src={currentImage.imageUrl}
-            alt={currentImage.prompt}
-            class="image"
-          />
+          {#if currentImage}
+            <img
+              src={currentImage.imageUrl}
+              alt={currentImage.prompt}
+              class="image"
+            />
+          {:else if isGenerating}
+            <!-- Placeholder for generation -->
+            <div class="image-placeholder">
+              <!-- Empty div to maintain size during generation -->
+              <div style="width: 512px; height: 512px;"></div>
+            </div>
+          {/if}
+          
+          <!-- Scanning animation overlay -->
+          {#if isGenerating}
+            <div class="scan-overlay">
+              <div 
+                class="scan-line"
+                style="top: {scanPosition}%"
+              ></div>
+              <div class="scan-glow"></div>
+            </div>
+          {/if}
           
           <!-- Controls -->
           <div class="control-buttons">
@@ -120,6 +171,7 @@
               class="control-button"
               on:click={downloadImage}
               title="Download Image"
+              class:invisible={!currentImage}
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -137,7 +189,7 @@
               </svg>
             </button>
             
-            {#if $uiStore.showImageBorder}
+            {#if $uiStore.showImageBorder && currentImage}
               <!-- Prompt toggle button -->
               <button
                 class="control-button ml-2"
@@ -153,7 +205,7 @@
         </div>
         
         <!-- Prompt display -->
-        {#if $uiStore.showImageBorder && showPrompt && currentImage.prompt}
+        {#if $uiStore.showImageBorder && showPrompt && currentImage?.prompt}
           <div class="prompt-container">
             <p class="prompt-text">{currentImage.prompt}</p>
             <button 
@@ -238,6 +290,9 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    overflow: hidden;
+    min-width: 512px;
+    min-height: 512px;
   }
 
   /* Image styling */
@@ -323,5 +378,63 @@
   .copy-button:hover {
     background: #f0f0f0;
     color: #333;
+  }
+
+  /* Scanning animation styles */
+  .scan-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(1px);
+  }
+
+  .scan-line {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(0, 255, 255, 0.8) 20%,
+      rgba(0, 255, 255, 1) 50%,
+      rgba(0, 255, 255, 0.8) 80%,
+      transparent 100%
+    );
+    box-shadow: 
+      0 0 10px rgba(0, 255, 255, 0.5),
+      0 0 20px rgba(0, 255, 255, 0.3),
+      0 0 30px rgba(0, 255, 255, 0.2);
+    transition: top 0.05s linear;
+  }
+
+  .scan-glow {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle at 50% var(--scan-position, 50%),
+      rgba(0, 255, 255, 0.1) 0%,
+      transparent 60%
+    );
+    --scan-position: 50%;
+  }
+  
+  /* Image placeholder styling */
+  .image-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    width: 512px;
+    height: 512px;
+  }
+
+  .invisible {
+    opacity: 0;
+    pointer-events: none;
   }
 </style> 

@@ -551,14 +551,14 @@
         </div>
       {/if}
       
-      {#if $imageStore.isGenerating || $imageStore.isUploading}
+      {#if $imageStore.isUploading}
         <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center">
           <div class="text-white text-center">
             <div class="mb-4">
               <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
             </div>
             <div class="text-lg font-medium">
-              {$imageStore.isGenerating ? 'Generating image...' : 'Uploading image...'}
+              Uploading image...
             </div>
           </div>
         </div>
