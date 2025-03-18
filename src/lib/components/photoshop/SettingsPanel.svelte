@@ -101,7 +101,20 @@
             {/if}
           </button>
         </div>
-        <p class="text-xs mt-1 text-gray-500">
+        {#if !apiKey}
+          <div class="mt-2 mb-1">
+            <a 
+              href="https://aistudio.google.com/app/apikey" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              class="text-blue-500 hover:text-blue-600 text-xs flex items-center"
+            >
+              <span class="opacity-80">Need a key?</span>
+              <span class="ml-1 font-medium">Get one from Google AI Studio →</span>
+            </a>
+          </div>
+        {/if}
+        <p class="text-xs text-gray-500 mt-1">
           Your API key is stored locally and never sent to our servers.
         </p>
       </div>
