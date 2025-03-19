@@ -1,6 +1,8 @@
 <!-- Photoshop-inspired layout -->
 <script lang="ts">
 	import '../app.css';
+	import SEO from '$lib/components/SEO.svelte';
+
 
 	import Toast from '$lib/components/ui/Toast.svelte';
 	import { page } from '$app/stores';
@@ -76,6 +78,8 @@
 </script>
 
 <svelte:window on:click={handleClickOutside} />
+
+<SEO />
 
 <div 
 	class="h-screen flex flex-col overflow-hidden {themeClass}"

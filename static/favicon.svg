@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="32" height="32" rx="8" fill="#2563EB"/>
+  
+  <!-- VP Letters -->
+  <path d="M8 8L13 24H15L20 8H17.5L14 20L10.5 8H8Z" fill="white"/>
+  <path d="M21 8V24H23V18H26C28.2 18 30 16.2 30 14V12C30 9.8 28.2 8 26 8H21ZM23 10H26C27.1 10 28 10.9 28 12V14C28 15.1 27.1 16 26 16H23V10Z" fill="white"/>
+</svg> 

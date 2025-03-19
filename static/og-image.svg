@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with gradient -->
+  <rect width="1200" height="630" fill="url(#gradient)"/>
+  
+  <!-- Logo -->
+  <g transform="translate(60, 60)">
+    <rect width="80" height="80" rx="16" fill="#2563EB"/>
+    <text x="40" y="55" font-family="Arial" font-size="36" fill="white" text-anchor="middle">VP</text>
+  </g>
+  
+  <!-- Main Text -->
+  <text x="60" y="240" font-family="Arial" font-weight="bold" font-size="72" fill="white">
+    Vibe Photoshop
+  </text>
+  <text x="60" y="320" font-family="Arial" font-size="36" fill="white" opacity="0.9">
+    AI-Powered Image Editor
+  </text>
+  
+  <!-- Features -->
+  <g transform="translate(60, 400)" fill="white" opacity="0.8">
+    <text font-family="Arial" font-size="24">• Generate images with natural language</text>
+    <text y="40" font-family="Arial" font-size="24">• Edit photos with AI assistance</text>
+    <text y="80" font-family="Arial" font-size="24">• Enhance and transform your images</text>
+  </g>
+  
+  <!-- Decorative Elements -->
+  <path d="M800 100C900 150 1000 200 1100 150" stroke="white" stroke-width="2" opacity="0.2"/>
+  <path d="M850 200C950 250 1050 300 1150 250" stroke="white" stroke-width="2" opacity="0.2"/>
+  
+  <!-- Gradient Definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1E40AF"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+</svg> 
