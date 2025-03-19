@@ -93,7 +93,8 @@
       const userMessage: ChatMessage = {
         type: 'user',
         text: prompt,
-        timestamp: new Date()
+        timestamp: new Date(),
+        images: $uiStore.selectedImage ? [$uiStore.selectedImage] : undefined
       };
       chatStore.addMessage(userMessage);
       scrollToBottom();
@@ -382,10 +383,89 @@
     if (!error) error = $chatStore.error;
   }
 
+  // Subscribe to imageStore changes to update chat when image is uploaded from canvas
+  $: if ($imageStore.currentImage && 
+        $imageStore.currentImage.prompt === 'Uploaded image' && // Only trigger for uploaded images
+        !messages.some(m => 
+          m.images?.some(img => 
+            img === $imageStore.currentImage?.imageUrl || 
+            img === $imageStore.currentImage?.thumbnail
+          )
+        )
+      ) {
+    // Add system message about upload
+    chatStore.addMessage({
+      type: 'system',
+      text: 'Image uploaded successfully. You can now edit the image using text prompts.',
+      timestamp: new Date()
+    });
+
+    // Add user message with the uploaded image
+    chatStore.addMessage({
+      type: 'user',
+      text: 'Uploaded an image',
+      timestamp: new Date(),
+      images: [$imageStore.currentImage.imageUrl]
+    });
+
+    // Scroll to bottom
+    scrollToBottom();
+  }
+
+  // Handle file upload
+  async function handleFileUpload(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) return;
+
+    const file = input.files[0];
+    try {
+      // Convert file to base64
+      const base64Image = await fileToBase64(file);
+      
+      // Create a new image in the imageStore
+      const timestamp = new Date();
+      const imageId = `img-${timestamp.getTime()}`;
+      const newImage = {
+        id: imageId,
+        userId: '1',
+        prompt: 'Uploaded image',
+        imageUrl: base64Image,
+        thumbnail: base64Image,
+        status: 'completed' as const,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        metadata: {
+          width: 1024,
+          height: 1024,
+          format: 'jpeg',
+          size: base64Image.length
+        },
+        versions: [
+          {
+            id: `v-${timestamp.getTime()}`,
+            imageId,
+            prompt: 'Initial upload',
+            imageUrl: base64Image,
+            createdAt: timestamp
+          }
+        ]
+      };
+
+      // Update imageStore
+      imageStore.setCurrentImage(newImage);
+      
+      // Clear the input
+      input.value = '';
+      
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error('Failed to upload image');
+    }
+  }
+
   // Handle image selection from chat
   function handleImageClick(image: string, message: ChatMessage) {
-    // Check if this image is already in the versions
-    const imageUrl = `data:image/jpeg;base64,${image}`;
+    const imageUrl = image.startsWith('data:') ? image : `data:image/jpeg;base64,${image}`;
     
     if (!$imageStore.currentImage) {
       // If no current image, create a new one
@@ -404,7 +484,7 @@
           width: 1024,
           height: 1024,
           format: 'jpeg',
-          size: image.length
+          size: typeof image === 'string' ? image.length : 0
         },
         versions: [
           {
@@ -418,14 +498,14 @@
       };
       imageStore.setCurrentImage(newImage);
     } else {
-      // Check if this exact image URL already exists in versions to prevent duplicates
+      // Check if this exact image URL already exists in versions
       const existingVersion = $imageStore.currentImage.versions.find(v => v.imageUrl === imageUrl);
       
       if (existingVersion) {
-        // If the version already exists, just select it instead of creating a duplicate
+        // If the version already exists, just select it
         imageStore.selectVersion(existingVersion);
       } else {
-        // Only add as a new version if it doesn't already exist
+        // Add as a new version if it doesn't exist
         const timestamp = new Date();
         const newVersion = {
           id: `v-${timestamp.getTime()}`,
@@ -438,24 +518,24 @@
       }
     }
     
-    // Update UI store
-    uiStore.setSelectedImage(image);
+    // Update UI store with the correct format
+    uiStore.setSelectedImage(imageUrl);
   }
 
   // Handle image download
   function downloadImage(image: string, message: ChatMessage) {
+    const imageUrl = image.startsWith('data:') ? image : `data:image/jpeg;base64,${image}`;
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const promptSnippet = message.text.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '-');
     const filename = `vibe-photoshop-${promptSnippet}-${timestamp}.jpg`;
     
     const link = document.createElement('a');
-    link.href = `data:image/jpeg;base64,${image}`;
+    link.href = imageUrl;
     link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     
-    // Show toast notification
     toast.success('Image downloaded successfully');
   }
 </script>
@@ -466,36 +546,55 @@
   
   <!-- Chat messages -->
   <div 
-    class="flex-1 overflow-y-auto p-3 space-y-3" 
+    class="flex-1 overflow-y-auto p-3 space-y-3 relative" 
     bind:this={chatContainer}
   >
     {#each messages as message}
       <div class="flex {message.type === 'user' ? 'justify-end' : 'justify-start'}">
         <div 
-          class="rounded px-3 py-2 max-w-[85%] shadow-md" 
+          class="{message.type === 'system' ? 'max-w-full w-full' : 'max-w-[85%]'} rounded px-3 py-2 shadow-md relative {message.type === 'system' ? 'system-message' : ''}" 
           style="
-            background-color: {message.type === 'user' ? 'var(--ps-accent)' : message.type === 'system' ? 'var(--ps-border)' : 'var(--ps-panel)'};
+            background-color: {
+              message.type === 'user' 
+                ? 'var(--ps-accent)' 
+                : message.type === 'system' 
+                  ? 'transparent' 
+                  : 'var(--ps-panel)'
+            };
+            border: {message.type === 'system' ? '1px solid var(--ps-border)' : 'none'};
             border-radius: var(--ps-border-radius);
-            box-shadow: var(--ps-shadow);
+            box-shadow: {message.type === 'system' ? 'none' : 'var(--ps-shadow)'};
           "
         >
-          <div class="text-sm prose dark:prose-invert" style="color: var(--ps-text);">
+          <div 
+            class="text-xs prose dark:prose-invert {message.type === 'system' ? 'system-text' : ''}" 
+            style="
+              color: {
+                message.type === 'system' 
+                  ? 'var(--ps-text-secondary)' 
+                  : 'var(--ps-text)'
+              };
+              font-style: {message.type === 'system' ? 'italic' : 'normal'};
+              opacity: {message.type === 'system' ? '0.8' : '1'};
+            "
+          >
             <SvelteMarkdown source={message.text} />
           </div>
           
           {#if message.images && message.images.length > 0}
             <div class="mt-2 space-y-2">
               {#each message.images as image}
-                <div class="relative group">
+                <div class="relative bg-[#1a1a1a] rounded overflow-hidden">
+                  <div class="absolute inset-0 bg-gradient-to-b from-black/10 to-black/30 pointer-events-none"></div>
                   <img 
-                    src="data:image/jpeg;base64,{image}" 
-                    alt="Generated" 
-                    class="max-w-full rounded cursor-pointer hover:opacity-90 transition-opacity"
+                    src={image.startsWith('data:') ? image : `data:image/jpeg;base64,${image}`}
+                    alt="Generated or Uploaded" 
+                    class="max-w-full w-full rounded cursor-pointer hover:opacity-90 transition-opacity relative z-10"
                     style="border-radius: var(--ps-border-radius);"
                     on:click={() => handleImageClick(image, message)}
                   />
                   <button
-                    class="absolute top-2 right-2 p-2 rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-all duration-200"
+                    class="absolute top-2 right-2 p-2 rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-all duration-200 z-20"
                     style="border-radius: var(--ps-border-radius);"
                     on:click|stopPropagation={() => downloadImage(image, message)}
                     title="Download image"
@@ -509,12 +608,32 @@
             </div>
           {/if}
           
-          <p class="text-xs opacity-70 mt-1 text-right" style="color: var(--ps-text);">
-            {new Date(message.timestamp).toLocaleTimeString()}
+          <p class="text-[10px] opacity-70 mt-1 text-right" style="color: var(--ps-text);">
+            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
       </div>
     {/each}
+
+    <!-- Mobile Upload Button -->
+    <button
+      class="md:hidden fixed bottom-20 right-4 p-3 rounded-full shadow-lg z-10 transition-all duration-200 hover:scale-105"
+      style="background-color: var(--ps-accent);"
+      on:click={() => document.getElementById('mobile-file-input')?.click()}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+      </svg>
+    </button>
+
+    <!-- Hidden file input -->
+    <input
+      type="file"
+      id="mobile-file-input"
+      accept="image/*"
+      class="hidden"
+      on:change={handleFileUpload}
+    />
   </div>
   
   <!-- Input form with enhanced styling -->
@@ -560,7 +679,7 @@
         {#if isGenerating}
           <div class="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
         {:else}
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
           </svg>
         {/if}
@@ -608,16 +727,44 @@
   
   :global(.prose) {
     max-width: none;
+    font-size: 0.85em;
   }
   
   :global(.prose pre) {
     background-color: var(--ps-panel);
     border-radius: var(--ps-border-radius);
+    font-size: 0.9em;
   }
   
   :global(.prose code) {
     background-color: var(--ps-panel);
     border-radius: var(--ps-border-radius);
     padding: 0.2em 0.4em;
+    font-size: 0.9em;
+  }
+
+  .system-message {
+    background: linear-gradient(
+      to right,
+      rgba(var(--ps-border-rgb), 0.05),
+      rgba(var(--ps-border-rgb), 0.1)
+    );
+    backdrop-filter: blur(8px);
+  }
+
+  .system-text {
+    font-size: 0.8em;
+    line-height: 1.4;
+  }
+
+  /* Mobile upload button styles */
+  button:active {
+    transform: scale(0.95);
+  }
+
+  :global(.prose img) {
+    margin: 0;
+    border-radius: var(--ps-border-radius);
+    background-color: #1a1a1a;
   }
 </style> 
