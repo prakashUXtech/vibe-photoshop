@@ -26,6 +26,14 @@
   
   let mounted = false;
   
+  // Add mobile menu state
+  let isMobileMenuOpen = false;
+  
+  // Toggle mobile menu
+  function toggleMobileMenu() {
+    isMobileMenuOpen = !isMobileMenuOpen;
+  }
+  
   // Handle file upload
   async function handleFileSelect(event: Event) {
     if (!browser) return;
@@ -504,11 +512,10 @@
 </script>
 
 {#if browser && mounted}
-<!-- Main application layout -->
 <div class="flex h-full">
-  <!-- Left sidebar with tools -->
+  <!-- Left sidebar with tools - hidden on mobile -->
   <div 
-    class="w-16 border-r flex flex-col"
+    class="hidden md:w-16 md:flex md:flex-col border-r"
     style="background-color: var(--ps-secondary); border-color: var(--ps-border);"
   >
     <ToolBar 
@@ -518,8 +525,8 @@
     />
   </div>
   
-  <!-- Main content area -->
-  <div class="flex-1 flex flex-col overflow-hidden">
+  <!-- Main content area - hidden on mobile -->
+  <div class="hidden md:flex md:flex-1 md:flex-col overflow-hidden">
     <!-- Main canvas area -->
     <div class="flex-1 overflow-hidden relative flex items-center justify-center">
       <div class="relative w-full h-full flex items-center justify-center">
@@ -540,8 +547,11 @@
             <h3 class="text-xl font-medium text-gray-300 mb-2">No image selected</h3>
             <p class="text-gray-400 mb-6">Upload an image or enter a prompt to get started.</p>
             <button
-              class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              style="border-radius: var(--ps-border-radius);"
+              class="px-4 py-2 text-white rounded-md hover:opacity-80 transition-colors"
+              style="
+                background-color: var(--ps-accent);
+                border-radius: var(--ps-border-radius);
+              "
               on:click={() => {
                 const fileInput = document.querySelector('input[type="file"]');
                 if (fileInput) {
@@ -585,9 +595,9 @@
     </div>
   </div>
   
-  <!-- Right panel with tabs -->
+  <!-- Right panel with tabs - full screen on mobile -->
   <div 
-    class="w-[26rem] border-l flex flex-col"
+    class="w-full md:w-[26rem] border-l flex flex-col"
     style="background-color: var(--ps-secondary); border-color: var(--ps-border);"
   >
     <!-- Panel tabs -->

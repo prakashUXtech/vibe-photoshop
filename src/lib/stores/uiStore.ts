@@ -50,7 +50,7 @@ const initialState: UIState = {
   loadingText: 'Initializing...',
   theme: getInitialTheme(),
   selectedImage: null,
-  selectedModel: 'gemini-pro-vision',
+  selectedModel: 'gemini-2.0-flash-exp-image-generation',
   isStreaming: false,
   showImageBorder: false // Default to not showing border
 };

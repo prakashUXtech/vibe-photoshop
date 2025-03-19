@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import { uiStore } from '$lib/stores/uiStore';
+  import { onMount } from 'svelte';
 
   const models = [
     { 
@@ -22,6 +23,20 @@
       description: 'Balanced performance and quality'
     }
   ];
+
+  // Subscribe to store changes
+  let selectedModel: string;
+  let unsubscribe = uiStore.subscribe(state => {
+    selectedModel = state.selectedModel;
+  });
+
+  onMount(() => {
+    // If no model is selected, set the default
+    if (!selectedModel) {
+      uiStore.setSelectedModel(models[0].id);
+    }
+    return unsubscribe;
+  });
 </script>
 
 <div class="p-3 border-b" style="border-color: var(--ps-border);">
@@ -34,7 +49,7 @@
       border: 1px solid var(--ps-border);
       border-radius: var(--ps-border-radius);
     "
-    value={$uiStore.selectedModel}
+    bind:value={selectedModel}
     on:change={(e) => uiStore.setSelectedModel(e.currentTarget.value)}
   >
     {#each models as model}
@@ -43,9 +58,9 @@
       </option>
     {/each}
   </select>
-  {#if $uiStore.selectedModel}
+  {#if selectedModel}
     <p class="text-xs mt-1 opacity-70" style="color: var(--ps-text);">
-      {models.find(m => m.id === $uiStore.selectedModel)?.description}
+      {models.find(m => m.id === selectedModel)?.description}
     </p>
   {/if}
 </div>

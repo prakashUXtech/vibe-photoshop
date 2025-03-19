@@ -38,6 +38,10 @@
 	},
 	"dependencies": {
 		"@google/generative-ai": "^0.24.0",
-		"svelte-markdown": "^0.4.1"
+		"@lucide/svelte": "^0.483.0",
+		"class-variance-authority": "^0.7.1",
+		"clsx": "^2.1.1",
+		"svelte-markdown": "^0.4.1",
+		"tailwind-merge": "^3.0.2"
 	}
 }

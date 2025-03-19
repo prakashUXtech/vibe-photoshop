@@ -254,10 +254,11 @@
   
   /* Style the grid background */
   .grid-background {
+    background-color: var(--ps-secondary);
     background-size: 16px 16px;
     background-image: 
-      linear-gradient(to right, rgba(51, 51, 51, 0.2) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(51, 51, 51, 0.2) 1px, transparent 1px);
+      linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
   }
 
   /* Image container */
@@ -279,9 +280,18 @@
   }
 
   /* Dark mode support */
-  :global(.dark) .polaroid-border {
-    background: white;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  :global(.dark) {
+    .grid-background {
+      background-color: #1a1a1a;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+    }
+    
+    .polaroid-border {
+      background: white;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
   }
 
   /* Image wrapper */
