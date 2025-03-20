@@ -40,5 +40,6 @@ Changes:
   <!-- App name - hidden on mobile unless specified -->
   <span class="hidden md:inline-block text-sm font-semibold" style="color: var(--ps-accent)">
     Vibe Photoshop
-  </span>
+  </span> 
+  <span class="text-xs font-semibold opacity-50"> 0.1 - alpha</span>
 </div>
