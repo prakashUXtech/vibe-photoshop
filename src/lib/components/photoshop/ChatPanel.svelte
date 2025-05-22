@@ -527,7 +527,7 @@
     const imageUrl = image.startsWith('data:') ? image : `data:image/jpeg;base64,${image}`;
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const promptSnippet = message.text.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '-');
-    const filename = `vibe-photoshop-${promptSnippet}-${timestamp}.jpg`;
+    const filename = `vide-edit-${promptSnippet}-${timestamp}.jpg`;
     
     const link = document.createElement('a');
     link.href = imageUrl;

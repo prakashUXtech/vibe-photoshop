@@ -11,7 +11,7 @@ import type { User } from '$lib/types';
 import { writable, get } from 'svelte/store';
 
 // Define a prefix for local storage keys
-const STORAGE_PREFIX = 'vibe_photoshop_';
+const STORAGE_PREFIX = 'vide_edit_';
 
 // Create a user store
 export const userStore = writable<User | null>(null);

@@ -1,4 +1,4 @@
-// Types for the Vibe Photoshop application
+// Types for the Vide Edit application
 
 export interface User {
   id: string;

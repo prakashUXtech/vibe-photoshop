@@ -19,12 +19,12 @@
                 </svg>
               </div>
               <h1 class="text-3xl font-bold mb-1">
-                <span class="text-red-500">Vibe</span>
-                <span class="text-white">Photoshop</span>
+                <span class="text-red-500">Vide</span>
+                <span class="text-white">Edit</span>
               </h1>
               <p class="text-xs text-gray-400 mb-4">Powered by AI</p>
               <div class="text-xs text-gray-400 mt-4">
-                © 2024 Vibe Photoshop. All rights reserved.
+                © 2024 Vide Edit. All rights reserved.
               </div>
             </div>
           </div>

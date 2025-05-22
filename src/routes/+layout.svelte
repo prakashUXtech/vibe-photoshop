@@ -36,7 +36,7 @@
 	}
 	
 	// Simplified title since we now have a single-page experience
-	const title = 'Vibe Photoshop';
+	const title = 'Vide Edit';
 
 	// Default theme class
 	let themeClass = '';

@@ -11,7 +11,7 @@
 import { browser } from '$app/environment';
 import type { Image } from '$lib/types';
 
-const DB_NAME = 'vibe_photoshop_db';
+const DB_NAME = 'vide_edit_db';
 const DB_VERSION = 1;
 const STORE_NAME = 'images';
 

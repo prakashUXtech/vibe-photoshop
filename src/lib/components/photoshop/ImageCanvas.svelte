@@ -65,7 +65,7 @@
     
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const promptSnippet = currentImage.prompt.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '-');
-    const filename = `vibe-photoshop-${promptSnippet}-${timestamp}.jpg`;
+    const filename = `vide-edit-${promptSnippet}-${timestamp}.jpg`;
     
     const link = document.createElement('a');
     link.href = currentImage.imageUrl;

@@ -449,10 +449,9 @@
     
     const link = document.createElement('a');
     link.href = $imageStore.currentImage.imageUrl;
-    link.download = `vibe-photoshop-${$imageStore.currentImage.id}.jpg`;
+    link.download = `vide-edit-${$imageStore.currentImage.id}.jpg`;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
     
     chatStore.addMessage({
       type: 'system',

@@ -29,7 +29,7 @@ const themeConfigs: ThemeConfigs = {
   'CC 2024': {
     primary: '#2D2D2D',
     secondary: '#1E1E1E',
-    accent: '#0078D7',
+    accent: '#8A2BE2',
     text: '#E0E0E0',
     border: '#3A3A3A',
     panel: '#252525',
@@ -45,7 +45,7 @@ const themeConfigs: ThemeConfigs = {
   'CC 2022': {
     primary: '#2A2A2A',
     secondary: '#1C1C1C',
-    accent: '#1473E6',
+    accent: '#8A2BE2',
     text: '#E6E6E6',
     border: '#383838',
     panel: '#232323',
@@ -61,7 +61,7 @@ const themeConfigs: ThemeConfigs = {
   'CC 2020': {
     primary: '#323232',
     secondary: '#212121',
-    accent: '#1473E6',
+    accent: '#8A2BE2',
     text: '#E6E6E6',
     border: '#3F3F3F',
     panel: '#262626',
@@ -77,7 +77,7 @@ const themeConfigs: ThemeConfigs = {
   'CS6': {
     primary: '#333333',
     secondary: '#222222',
-    accent: '#2D91E8',
+    accent: '#8A2BE2',
     text: '#CCCCCC',
     border: '#444444',
     panel: '#282828',
@@ -93,7 +93,7 @@ const themeConfigs: ThemeConfigs = {
   'CS3': {
     primary: '#4B4B4B',
     secondary: '#333333',
-    accent: '#3F92D2',
+    accent: '#8A2BE2',
     text: '#DDDDDD',
     border: '#555555',
     panel: '#3D3D3D',
@@ -109,7 +109,7 @@ const themeConfigs: ThemeConfigs = {
   '7.0': {
     primary: '#6A6A6A',
     secondary: '#535353',
-    accent: '#0066CC',
+    accent: '#8A2BE2',
     text: '#EEEEEE',
     border: '#777777',
     panel: '#5A5A5A',
